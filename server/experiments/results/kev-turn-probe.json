@@ -1,0 +1,207 @@
+{
+  "choice": "heading_01",
+  "candidate_count": 16,
+  "selection_mode": "single_choice",
+  "speeds_knots": [
+    15.0
+  ],
+  "inference_s": 0.1818232879995776,
+  "state": {
+    "task": "Control an USV to visit waypoint circles in order at 15 knots while keeping sail stable and short.",
+    "command_speed_knots": 15.0,
+    "coordinate_system": "East/north; course clockwise from north: 0=N, 90=E, 180=S, 270=W. Relative angles: negative=left, positive=right.",
+    "actual_speed_knots": 15.0,
+    "actual_course_deg": 90.0,
+    "current_waypoint_index": 2,
+    "target_east_m": -960.0,
+    "target_north_m": 640.0,
+    "target_bearing_deg": 303.69,
+    "target_relative_bearing_deg": -146.31,
+    "distance_to_target_m": 1153.78,
+    "arrival_radius_m": 50,
+    "command_duration_s": 1.0,
+    "max_turn_deg": 5.0,
+    "recent_decisions": [],
+    "forecast_note": "Approximate forecasts obey the configured turn-rate limit."
+  },
+  "options": {
+    "heading_00": {
+      "absolute_course_deg": 85.0,
+      "turn_deg": 5.0,
+      "signed_turn_deg": -5.0,
+      "distance_after_m": 1160.01,
+      "distance_after_2_steps_m": 1166.06,
+      "speed_limit_violation": false,
+      "approach_speed_warning": false
+    },
+    "heading_01": {
+      "absolute_course_deg": 85.67,
+      "turn_deg": 4.33,
+      "signed_turn_deg": -4.33,
+      "distance_after_m": 1160.01,
+      "distance_after_2_steps_m": 1166.12,
+      "speed_limit_violation": false,
+      "approach_speed_warning": false
+    },
+    "heading_02": {
+      "absolute_course_deg": 86.33,
+      "turn_deg": 3.67,
+      "signed_turn_deg": -3.67,
+      "distance_after_m": 1160.03,
+      "distance_after_2_steps_m": 1166.19,
+      "speed_limit_violation": false,
+      "approach_speed_warning": false
+    },
+    "heading_03": {
+      "absolute_course_deg": 87.0,
+      "turn_deg": 3.0,
+      "signed_turn_deg": -3.0,
+      "distance_after_m": 1160.04,
+      "distance_after_2_steps_m": 1166.26,
+      "speed_limit_violation": false,
+      "approach_speed_warning": false
+    },
+    "heading_04": {
+      "absolute_course_deg": 87.67,
+      "turn_deg": 2.33,
+      "signed_turn_deg": -2.33,
+      "distance_after_m": 1160.07,
+      "distance_after_2_steps_m": 1166.34,
+      "speed_limit_violation": false,
+      "approach_speed_warning": false
+    },
+    "heading_05": {
+      "absolute_course_deg": 88.33,
+      "turn_deg": 1.67,
+      "signed_turn_deg": -1.67,
+      "distance_after_m": 1160.1,
+      "distance_after_2_steps_m": 1166.42,
+      "speed_limit_violation": false,
+      "approach_speed_warning": false
+    },
+    "heading_06": {
+      "absolute_course_deg": 89.0,
+      "turn_deg": 1.0,
+      "signed_turn_deg": -1.0,
+      "distance_after_m": 1160.14,
+      "distance_after_2_steps_m": 1166.51,
+      "speed_limit_violation": false,
+      "approach_speed_warning": false
+    },
+    "heading_07": {
+      "absolute_course_deg": 90.0,
+      "turn_deg": 0.0,
+      "signed_turn_deg": 0.0,
+      "distance_after_m": 1160.2,
+      "distance_after_2_steps_m": 1166.65,
+      "speed_limit_violation": false,
+      "approach_speed_warning": false
+    },
+    "heading_08": {
+      "absolute_course_deg": 90.33,
+      "turn_deg": 0.33,
+      "signed_turn_deg": 0.33,
+      "distance_after_m": 1160.23,
+      "distance_after_2_steps_m": 1166.7,
+      "speed_limit_violation": false,
+      "approach_speed_warning": false
+    },
+    "heading_09": {
+      "absolute_course_deg": 91.0,
+      "turn_deg": 1.0,
+      "signed_turn_deg": 1.0,
+      "distance_after_m": 1160.27,
+      "distance_after_2_steps_m": 1166.79,
+      "speed_limit_violation": false,
+      "approach_speed_warning": false
+    },
+    "heading_10": {
+      "absolute_course_deg": 91.67,
+      "turn_deg": 1.67,
+      "signed_turn_deg": 1.67,
+      "distance_after_m": 1160.31,
+      "distance_after_2_steps_m": 1166.87,
+      "speed_limit_violation": false,
+      "approach_speed_warning": false
+    },
+    "heading_11": {
+      "absolute_course_deg": 92.33,
+      "turn_deg": 2.33,
+      "signed_turn_deg": 2.33,
+      "distance_after_m": 1160.33,
+      "distance_after_2_steps_m": 1166.94,
+      "speed_limit_violation": false,
+      "approach_speed_warning": false
+    },
+    "heading_12": {
+      "absolute_course_deg": 93.0,
+      "turn_deg": 3.0,
+      "signed_turn_deg": 3.0,
+      "distance_after_m": 1160.36,
+      "distance_after_2_steps_m": 1167.01,
+      "speed_limit_violation": false,
+      "approach_speed_warning": false
+    },
+    "heading_13": {
+      "absolute_course_deg": 93.67,
+      "turn_deg": 3.67,
+      "signed_turn_deg": 3.67,
+      "distance_after_m": 1160.37,
+      "distance_after_2_steps_m": 1167.07,
+      "speed_limit_violation": false,
+      "approach_speed_warning": false
+    },
+    "heading_14": {
+      "absolute_course_deg": 94.33,
+      "turn_deg": 4.33,
+      "signed_turn_deg": 4.33,
+      "distance_after_m": 1160.38,
+      "distance_after_2_steps_m": 1167.12,
+      "speed_limit_violation": false,
+      "approach_speed_warning": false
+    },
+    "heading_15": {
+      "absolute_course_deg": 95.0,
+      "turn_deg": 5.0,
+      "signed_turn_deg": 5.0,
+      "distance_after_m": 1160.38,
+      "distance_after_2_steps_m": 1167.17,
+      "speed_limit_violation": false,
+      "approach_speed_warning": false
+    }
+  },
+  "instructions": "Choose the course that reaches the current circle. Respect speed limits; prefer smaller forecast distances. If the target is outside the reachable turn range, turn toward its relative bearing even if distance must initially increase. Avoid repeated reversals.",
+  "result": {
+    "model": "kev-latest",
+    "answers": {
+      "action": {
+        "type": "choice",
+        "choice": "heading_01",
+        "confidence": 0.0594,
+        "probabilities": {
+          "heading_00": 0.0552,
+          "heading_01": 0.1182,
+          "heading_02": 0.1017,
+          "heading_03": 0.1125,
+          "heading_04": 0.0848,
+          "heading_05": 0.0708,
+          "heading_06": 0.0696,
+          "heading_07": 0.0418,
+          "heading_08": 0.0422,
+          "heading_09": 0.0356,
+          "heading_10": 0.0388,
+          "heading_11": 0.0321,
+          "heading_12": 0.0416,
+          "heading_13": 0.0422,
+          "heading_14": 0.0518,
+          "heading_15": 0.0612
+        }
+      }
+    },
+    "usage": {
+      "input_tokens": 1525,
+      "output_tokens": 257
+    },
+    "latency_ms": 160.9
+  }
+}

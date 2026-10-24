@@ -1,0 +1,42 @@
+services:
+  decision-service:
+    image: usv-jev-decision-service:20261022
+    container_name: usv-jev-decision-service
+    restart: unless-stopped
+    init: true
+    network_mode: host
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      TASK_BIND_HOST: ${TASK_BIND_HOST:-0.0.0.0}
+      TASK_PORT: ${TASK_PORT:-18014}
+      SITUATION_GROUP: ${SITUATION_GROUP:-239.255.0.10}
+      SITUATION_PORT: ${SITUATION_PORT:-18010}
+      MULTICAST_INTERFACE: ${MULTICAST_INTERFACE:-0.0.0.0}
+      ACTION_HOST: ${ACTION_HOST:-192.168.3.126}
+      ACTION_PORT: ${ACTION_PORT:-18123}
+      CONTROL_INTERVAL: ${CONTROL_INTERVAL:-1}
+      STATUS_INTERVAL: ${STATUS_INTERVAL:-1}
+      MAX_CYCLES: ${MAX_CYCLES:-0}
+      PLATFORM_ID: ${PLATFORM_ID:?请配置本服务负责的平台ID}
+      SITUATION_MAX_AGE: ${SITUATION_MAX_AGE:-2.5}
+      STOP_SPEED_THRESHOLD: ${STOP_SPEED_THRESHOLD:-0.1}
+      REASSEMBLY_TIMEOUT: ${REASSEMBLY_TIMEOUT:-3}
+      MAX_CONSECUTIVE_ERRORS: ${MAX_CONSECUTIVE_ERRORS:-3}
+      COMMAND_HOLD_TIMEOUT: ${COMMAND_HOLD_TIMEOUT:-5}
+      POLICY_BACKEND: ${POLICY_BACKEND:-kev}
+      KEV_ENDPOINT: ${KEV_ENDPOINT:-http://127.0.0.1:18028/v1/systemone}
+      KEV_TIMEOUT: ${KEV_TIMEOUT:-120}
+      MAX_TURN_RATE_DEG_S: ${MAX_TURN_RATE_DEG_S:-45}
+      INITIAL_COURSE_DEG: ${INITIAL_COURSE_DEG:-}
+      JEV_API_KEY: ${JEV_API_KEY:-}
+      JEV_ENDPOINT: ${JEV_ENDPOINT:-https://api.jevcn.cn/v1/systemone}
+      JEV_MODEL: ${JEV_MODEL:-jev-latest}
+      JEV_TIMEOUT: ${JEV_TIMEOUT:-10}
+      SPEED_UNIT: ${SPEED_UNIT:-knots}
+      MAX_SPEED_KNOTS: ${MAX_SPEED_KNOTS:-30}
+      SPEED_TRANSITION_TIME: ${SPEED_TRANSITION_TIME:-0.5}
+      COURSE_TRANSITION_TIME: ${COURSE_TRANSITION_TIME:-0.5}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-127.0.0.1,localhost}
+    stop_grace_period: 10s

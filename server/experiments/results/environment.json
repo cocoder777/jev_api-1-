@@ -1,0 +1,13 @@
+{
+  "python": "3.12.3",
+  "torch": "2.14.1+cu130",
+  "transformers": "5.0.0",
+  "supersonic_julia": "0.1.0",
+  "cuda": "13.0",
+  "gpu": "NVIDIA GeForce RTX 5090",
+  "cpu": "x86_64",
+  "cpu_threads": 4,
+  "model_revision": "a85b127321d580d65176c89ced8273f305745d85",
+  "weights_sha256": "df853bf7fe424420011f3d0c47a05d7341aa9eefa7fb9f203ea4aada4ad95b72",
+  "native_jit_disabled": true
+}

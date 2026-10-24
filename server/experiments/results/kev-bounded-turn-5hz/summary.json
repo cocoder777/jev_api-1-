@@ -1,0 +1,34 @@
+{
+  "max_turn_rate_deg_s": 5.0,
+  "initial_course_deg": 90.0,
+  "completion_mode": "final_waypoint_arrival",
+  "kev_endpoint": "http://127.0.0.1:18028/v1/systemone",
+  "dt": 0.2,
+  "effective_speeds_knots": [
+    15.0
+  ],
+  "max_speed_knots": 12.0,
+  "backend": "kev",
+  "device": "kev_service",
+  "transport": "direct",
+  "model_path": null,
+  "elapsed_s": 79.51061128400033,
+  "results": [
+    {
+      "scenario": "crossing_km",
+      "completed": false,
+      "steps": 600,
+      "reached_waypoints": 1,
+      "total_waypoints": 10,
+      "target_waypoint_index": 2,
+      "simulated_seconds": 119.80000000000001,
+      "final_distance_m": 1392.7848183549922,
+      "final_speed_knots": 14.999999999999998,
+      "speed_violation_sample_count": 0,
+      "mean_latency_s": 0.13160190062666818,
+      "p95_latency_s": 0.13437008499931835,
+      "max_latency_s": 0.15964464800163114
+    }
+  ],
+  "limitations": "Idealized motion; direct mode pauses world during inference; sampled speed checks are not continuous verification. UDP mode runs in real time. Cycle-limit status is not physical route completion."
+}

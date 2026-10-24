@@ -1,0 +1,206 @@
+{
+  "model": "kev-latest",
+  "state": {
+    "task": "Control an USV to visit waypoint circles in order at 60 knots while keeping sail stable and short.",
+    "command_speed_knots": 60.0,
+    "coordinate_system": "East/north; course clockwise from north: 0=N, 90=E, 180=S, 270=W. Relative angles: negative=left, positive=right.",
+    "actual_speed_knots": 0.0,
+    "actual_course_deg": 90.0,
+    "current_waypoint_index": 0,
+    "target_east_m": 640.0,
+    "target_north_m": 0.0,
+    "target_bearing_deg": 90.0,
+    "target_relative_bearing_deg": 0.0,
+    "target_turn_side": "ahead",
+    "distance_to_target_m": 640.0,
+    "arrival_radius_m": 50.0,
+    "command_duration_s": 1.0,
+    "max_turn_deg": 45.0,
+    "recent_decisions": [],
+    "forecast_note": "Approximate forecasts obey the configured turn-rate limit."
+  },
+  "questions": {
+    "action": {
+      "type": "choice",
+      "instructions": "Reach the current waypoint circle. Respect speed limits. Choose a maneuver on target_turn_side; straight when ahead. Prefer smaller target heading error, then smaller forecast distance and less turning. Keep straight when aligned. A target behind the boat may require turning while distance initially increases; avoid repeated reversals.",
+      "criteria": {
+        "heading_00": {
+          "absolute_course_deg": 45.0,
+          "maneuver": "left",
+          "turn_deg": 45.0,
+          "signed_turn_deg": -45.0,
+          "target_heading_error_deg": 45.0,
+          "distance_after_m": 619.92,
+          "distance_after_2_steps_m": 598.88,
+          "speed_limit_violation": false,
+          "approach_speed_warning": false
+        },
+        "heading_01": {
+          "absolute_course_deg": 51.0,
+          "maneuver": "left",
+          "turn_deg": 39.0,
+          "signed_turn_deg": -39.0,
+          "target_heading_error_deg": 39.0,
+          "distance_after_m": 619.77,
+          "distance_after_2_steps_m": 596.44,
+          "speed_limit_violation": false,
+          "approach_speed_warning": false
+        },
+        "heading_02": {
+          "absolute_course_deg": 57.0,
+          "maneuver": "left",
+          "turn_deg": 33.0,
+          "signed_turn_deg": -33.0,
+          "target_heading_error_deg": 33.0,
+          "distance_after_m": 619.39,
+          "distance_after_2_steps_m": 594.02,
+          "speed_limit_violation": false,
+          "approach_speed_warning": false
+        },
+        "heading_03": {
+          "absolute_course_deg": 63.0,
+          "maneuver": "left",
+          "turn_deg": 27.0,
+          "signed_turn_deg": -27.0,
+          "target_heading_error_deg": 27.0,
+          "distance_after_m": 618.84,
+          "distance_after_2_steps_m": 591.72,
+          "speed_limit_violation": false,
+          "approach_speed_warning": false
+        },
+        "heading_04": {
+          "absolute_course_deg": 69.0,
+          "maneuver": "left",
+          "turn_deg": 21.0,
+          "signed_turn_deg": -21.0,
+          "target_heading_error_deg": 21.0,
+          "distance_after_m": 618.21,
+          "distance_after_2_steps_m": 589.64,
+          "speed_limit_violation": false,
+          "approach_speed_warning": false
+        },
+        "heading_05": {
+          "absolute_course_deg": 75.0,
+          "maneuver": "left",
+          "turn_deg": 15.0,
+          "signed_turn_deg": -15.0,
+          "target_heading_error_deg": 15.0,
+          "distance_after_m": 617.61,
+          "distance_after_2_steps_m": 587.92,
+          "speed_limit_violation": false,
+          "approach_speed_warning": false
+        },
+        "heading_06": {
+          "absolute_course_deg": 81.0,
+          "maneuver": "left",
+          "turn_deg": 9.0,
+          "signed_turn_deg": -9.0,
+          "target_heading_error_deg": 9.0,
+          "distance_after_m": 617.14,
+          "distance_after_2_steps_m": 586.7,
+          "speed_limit_violation": false,
+          "approach_speed_warning": false
+        },
+        "heading_07": {
+          "absolute_course_deg": 90.0,
+          "maneuver": "straight",
+          "turn_deg": 0.0,
+          "signed_turn_deg": 0.0,
+          "target_heading_error_deg": 0.0,
+          "distance_after_m": 616.85,
+          "distance_after_2_steps_m": 585.98,
+          "speed_limit_violation": false,
+          "approach_speed_warning": false
+        },
+        "heading_08": {
+          "absolute_course_deg": 93.0,
+          "maneuver": "right",
+          "turn_deg": 3.0,
+          "signed_turn_deg": 3.0,
+          "target_heading_error_deg": 3.0,
+          "distance_after_m": 616.88,
+          "distance_after_2_steps_m": 586.06,
+          "speed_limit_violation": false,
+          "approach_speed_warning": false
+        },
+        "heading_09": {
+          "absolute_course_deg": 99.0,
+          "maneuver": "right",
+          "turn_deg": 9.0,
+          "signed_turn_deg": 9.0,
+          "target_heading_error_deg": 9.0,
+          "distance_after_m": 617.14,
+          "distance_after_2_steps_m": 586.7,
+          "speed_limit_violation": false,
+          "approach_speed_warning": false
+        },
+        "heading_10": {
+          "absolute_course_deg": 105.0,
+          "maneuver": "right",
+          "turn_deg": 15.0,
+          "signed_turn_deg": 15.0,
+          "target_heading_error_deg": 15.0,
+          "distance_after_m": 617.61,
+          "distance_after_2_steps_m": 587.92,
+          "speed_limit_violation": false,
+          "approach_speed_warning": false
+        },
+        "heading_11": {
+          "absolute_course_deg": 111.0,
+          "maneuver": "right",
+          "turn_deg": 21.0,
+          "signed_turn_deg": 21.0,
+          "target_heading_error_deg": 21.0,
+          "distance_after_m": 618.21,
+          "distance_after_2_steps_m": 589.64,
+          "speed_limit_violation": false,
+          "approach_speed_warning": false
+        },
+        "heading_12": {
+          "absolute_course_deg": 117.0,
+          "maneuver": "right",
+          "turn_deg": 27.0,
+          "signed_turn_deg": 27.0,
+          "target_heading_error_deg": 27.0,
+          "distance_after_m": 618.84,
+          "distance_after_2_steps_m": 591.72,
+          "speed_limit_violation": false,
+          "approach_speed_warning": false
+        },
+        "heading_13": {
+          "absolute_course_deg": 123.0,
+          "maneuver": "right",
+          "turn_deg": 33.0,
+          "signed_turn_deg": 33.0,
+          "target_heading_error_deg": 33.0,
+          "distance_after_m": 619.39,
+          "distance_after_2_steps_m": 594.02,
+          "speed_limit_violation": false,
+          "approach_speed_warning": false
+        },
+        "heading_14": {
+          "absolute_course_deg": 129.0,
+          "maneuver": "right",
+          "turn_deg": 39.0,
+          "signed_turn_deg": 39.0,
+          "target_heading_error_deg": 39.0,
+          "distance_after_m": 619.77,
+          "distance_after_2_steps_m": 596.44,
+          "speed_limit_violation": false,
+          "approach_speed_warning": false
+        },
+        "heading_15": {
+          "absolute_course_deg": 135.0,
+          "maneuver": "right",
+          "turn_deg": 45.0,
+          "signed_turn_deg": 45.0,
+          "target_heading_error_deg": 45.0,
+          "distance_after_m": 619.92,
+          "distance_after_2_steps_m": 598.88,
+          "speed_limit_violation": false,
+          "approach_speed_warning": false
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "max_actual_turn_rate_deg_s": 4.999999999999929,
+  "interval_s": 0.2,
+  "candidate_turn_limit_deg": 1.0,
+  "all_candidates_within_limit": true,
+  "steps": 600,
+  "prompt_version": "before_relative_bearing_fix"
+}

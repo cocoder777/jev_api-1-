@@ -1,0 +1,24 @@
+{
+  "decisions": 1825,
+  "speed_counts": {
+    "15.0": 1825
+  },
+  "course_counts": {
+    "90.0": 160,
+    "270.0": 41,
+    "315.0": 163,
+    "292.5": 176,
+    "45.0": 154,
+    "135.0": 77,
+    "225.0": 206,
+    "337.5": 177,
+    "67.5": 300,
+    "112.5": 1,
+    "157.5": 279,
+    "247.5": 91
+  },
+  "opposite_command_changes": 1,
+  "sampled_travel_m": 14051.446879289579,
+  "latency_above_one_second": 1,
+  "sequential_circle_entries_verified": true
+}

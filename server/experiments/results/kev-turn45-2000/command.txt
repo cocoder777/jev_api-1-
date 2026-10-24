@@ -1,0 +1,1 @@
+.venv/bin/python server/experiments/simulate.py --backend kev --scenario crossing_km --steps 2000 --dt 1 --max-turn-rate-deg-s 45 --initial-course-deg 90 --output server/experiments/results/kev-turn45-2000

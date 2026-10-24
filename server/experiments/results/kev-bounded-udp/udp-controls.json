@@ -1,0 +1,234 @@
+[
+  {
+    "t": 0.20252493699990737,
+    "command": {
+      "platCode": 1010,
+      "speed": 15.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 0.3642911400002049,
+    "command": {
+      "platCode": 1010,
+      "speed": 15.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 0.576789650000137,
+    "command": {
+      "platCode": 1010,
+      "speed": 15.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 0.7788873209992744,
+    "command": {
+      "platCode": 1010,
+      "speed": 15.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 0.9809114800009411,
+    "command": {
+      "platCode": 1010,
+      "speed": 15.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 1.1829434739993303,
+    "command": {
+      "platCode": 1010,
+      "speed": 15.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 1.3749281489999703,
+    "command": {
+      "platCode": 1010,
+      "speed": 15.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 1.5771172189997742,
+    "command": {
+      "platCode": 1010,
+      "speed": 15.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 1.7790976029991725,
+    "command": {
+      "platCode": 1010,
+      "speed": 15.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 1.9812740100005612,
+    "command": {
+      "platCode": 1010,
+      "speed": 15.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 2.183491611000136,
+    "command": {
+      "platCode": 1010,
+      "speed": 15.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 2.3857268980009394,
+    "command": {
+      "platCode": 1010,
+      "speed": 15.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 2.577635048000957,
+    "command": {
+      "platCode": 1010,
+      "speed": 15.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 2.7796070799995505,
+    "command": {
+      "platCode": 1010,
+      "speed": 15.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 2.9815470640005515,
+    "command": {
+      "platCode": 1010,
+      "speed": 15.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 3.1837928200002352,
+    "command": {
+      "platCode": 1010,
+      "speed": 0.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 3.203997884000273,
+    "command": {
+      "platCode": 1010,
+      "speed": 0.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 3.4108977710002364,
+    "command": {
+      "platCode": 1010,
+      "speed": 0.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 3.605770104999465,
+    "command": {
+      "platCode": 1010,
+      "speed": 0.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 3.801224036000349,
+    "command": {
+      "platCode": 1010,
+      "speed": 0.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 4.007051898999634,
+    "command": {
+      "platCode": 1010,
+      "speed": 0.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 4.201066006000474,
+    "command": {
+      "platCode": 1010,
+      "speed": 0.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 4.405812687000434,
+    "command": {
+      "platCode": 1010,
+      "speed": 0.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 4.602726200999314,
+    "command": {
+      "platCode": 1010,
+      "speed": 0.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 4.80820040099934,
+    "command": {
+      "platCode": 1010,
+      "speed": 0.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 5.001820229999794,
+    "command": {
+      "platCode": 1010,
+      "speed": 0.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 5.2074311550004495,
+    "command": {
+      "platCode": 1010,
+      "speed": 0.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 5.411483349000264,
+    "command": {
+      "platCode": 1010,
+      "speed": 0.0,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 5.607425354999577,
+    "command": {
+      "platCode": 1010,
+      "speed": 0.0,
+      "course": 90.0
+    }
+  }
+]

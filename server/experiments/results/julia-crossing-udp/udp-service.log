@@ -1,0 +1,77 @@
+2026-10-22 22:44:02,992 INFO listening on UDP 127.0.0.1:49888
+2026-10-22 22:44:02,992 INFO subscribed to situation multicast 239.255.0.10:0 via 0.0.0.0
+2026-10-22 22:44:02,992 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:02,993 INFO started control loop for task crossing_reference
+2026-10-22 22:44:03,001 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:03,094 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:03,195 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:03,208 INFO Julia inference_s=0.207070 choice=speed_1__northeast
+2026-10-22 22:44:03,208 INFO task crossing_reference cycle=1 statePlatform=1010 speed=0.15 course=45.00
+2026-10-22 22:44:03,227 INFO Julia inference_s=0.011713 choice=speed_1__northeast
+2026-10-22 22:44:03,227 INFO task crossing_reference cycle=2 statePlatform=1010 speed=0.15 course=45.00
+2026-10-22 22:44:03,298 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:03,402 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:03,413 INFO Julia inference_s=0.012474 choice=speed_1__northeast
+2026-10-22 22:44:03,413 INFO task crossing_reference cycle=3 statePlatform=1010 speed=0.15 course=45.00
+2026-10-22 22:44:03,505 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:03,608 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:03,614 INFO Julia inference_s=0.012624 choice=speed_1__west
+2026-10-22 22:44:03,614 INFO task crossing_reference cycle=4 statePlatform=1010 speed=0.15 course=270.00
+2026-10-22 22:44:03,711 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:03,814 INFO Julia inference_s=0.012490 choice=speed_1__west
+2026-10-22 22:44:03,814 INFO task crossing_reference cycle=5 statePlatform=1010 speed=0.15 course=270.00
+2026-10-22 22:44:03,815 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:03,917 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:04,017 INFO Julia inference_s=0.014187 choice=speed_1__south
+2026-10-22 22:44:04,017 INFO task crossing_reference cycle=6 statePlatform=1010 speed=0.15 course=180.00
+2026-10-22 22:44:04,019 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:04,122 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:04,218 INFO Julia inference_s=0.014620 choice=speed_1__west
+2026-10-22 22:44:04,218 INFO task crossing_reference cycle=7 statePlatform=1010 speed=0.15 course=270.00
+2026-10-22 22:44:04,225 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:04,329 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:04,417 INFO Julia inference_s=0.014173 choice=speed_1__south
+2026-10-22 22:44:04,418 INFO task crossing_reference cycle=8 statePlatform=1010 speed=0.15 course=180.00
+2026-10-22 22:44:04,432 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:04,535 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:04,618 INFO Julia inference_s=0.014610 choice=speed_1__south
+2026-10-22 22:44:04,618 INFO task crossing_reference cycle=9 statePlatform=1010 speed=0.15 course=180.00
+2026-10-22 22:44:04,638 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:04,741 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:04,817 INFO Julia inference_s=0.014250 choice=speed_1__south
+2026-10-22 22:44:04,818 INFO task crossing_reference cycle=10 statePlatform=1010 speed=0.15 course=180.00
+2026-10-22 22:44:04,843 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:04,946 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:05,017 INFO Julia inference_s=0.014023 choice=speed_1__east
+2026-10-22 22:44:05,017 INFO task crossing_reference cycle=11 statePlatform=1010 speed=0.15 course=90.00
+2026-10-22 22:44:05,049 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:05,153 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:05,217 INFO Julia inference_s=0.013944 choice=speed_1__east
+2026-10-22 22:44:05,217 INFO task crossing_reference cycle=12 statePlatform=1010 speed=0.15 course=90.00
+2026-10-22 22:44:05,255 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:05,358 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:05,417 INFO Julia inference_s=0.014000 choice=speed_1__west
+2026-10-22 22:44:05,417 INFO task crossing_reference cycle=13 statePlatform=1010 speed=0.15 course=270.00
+2026-10-22 22:44:05,459 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:05,562 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:05,616 INFO Julia inference_s=0.013810 choice=speed_1__west
+2026-10-22 22:44:05,617 INFO task crossing_reference cycle=14 statePlatform=1010 speed=0.15 course=270.00
+2026-10-22 22:44:05,663 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:05,766 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:05,817 INFO Julia inference_s=0.013693 choice=speed_5__east
+2026-10-22 22:44:05,817 INFO task crossing_reference cycle=15 statePlatform=1010 speed=1.50 course=90.00
+2026-10-22 22:44:05,869 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:05,971 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:06,003 INFO stop requested for task crossing_reference
+2026-10-22 22:44:06,017 INFO Julia inference_s=0.013829 choice=speed_7__east
+2026-10-22 22:44:06,075 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:06,177 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:06,280 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:06,382 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:06,485 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:06,588 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:06,691 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:06,795 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:06,896 INFO received situation platformId=1010 from 127.0.0.1:43052
+2026-10-22 22:44:06,994 INFO task crossing_reference stopped
+2026-10-22 22:44:07,000 INFO received situation platformId=1010 from 127.0.0.1:43052

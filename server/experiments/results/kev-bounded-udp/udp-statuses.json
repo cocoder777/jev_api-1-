@@ -1,0 +1,142 @@
+[
+  {
+    "simId": "local-civilian",
+    "id": "crossing_km",
+    "code": "trackingMode",
+    "status": 1,
+    "description": "tracking",
+    "params": {
+      "nextWaypointIndex": 1,
+      "nextWaypoint": {
+        "routeLon": 120.50665207154643,
+        "routeLat": 30.2,
+        "routeSpeed": 20,
+        "routeRadius": 50
+      },
+      "remainingWaypointNum": 10,
+      "remainingDistanceM": null,
+      "estimatedRemainingTimeS": null,
+      "completionRate": null
+    }
+  },
+  {
+    "simId": "local-civilian",
+    "id": "crossing_km",
+    "code": "trackingMode",
+    "status": 1,
+    "description": "tracking",
+    "params": {
+      "nextWaypointIndex": 1,
+      "nextWaypoint": {
+        "routeLon": 120.50665207154643,
+        "routeLat": 30.2,
+        "routeSpeed": 20,
+        "routeRadius": 50
+      },
+      "remainingWaypointNum": 10,
+      "remainingDistanceM": 11963.49,
+      "estimatedRemainingTimeS": 1229.99,
+      "completionRate": 0.01
+    }
+  },
+  {
+    "simId": "local-civilian",
+    "id": "crossing_km",
+    "code": "trackingMode",
+    "status": 1,
+    "description": "tracking",
+    "params": {
+      "nextWaypointIndex": 1,
+      "nextWaypoint": {
+        "routeLon": 120.50665207154643,
+        "routeLat": 30.2,
+        "routeSpeed": 20,
+        "routeRadius": 50
+      },
+      "remainingWaypointNum": 10,
+      "remainingDistanceM": 11956.89,
+      "estimatedRemainingTimeS": 1186.6,
+      "completionRate": 0.07
+    }
+  },
+  {
+    "simId": "local-civilian",
+    "id": "crossing_km",
+    "code": "trackingMode",
+    "status": 1,
+    "description": "tracking",
+    "params": {
+      "nextWaypointIndex": 1,
+      "nextWaypoint": {
+        "routeLon": 120.50665207154643,
+        "routeLat": 30.2,
+        "routeSpeed": 20,
+        "routeRadius": 50
+      },
+      "remainingWaypointNum": 10,
+      "remainingDistanceM": 11949.24,
+      "estimatedRemainingTimeS": 1182.14,
+      "completionRate": 0.13
+    }
+  },
+  {
+    "simId": "local-civilian",
+    "id": "crossing_km",
+    "code": "trackingMode",
+    "status": 1,
+    "description": "stopping",
+    "params": {
+      "nextWaypointIndex": 1,
+      "nextWaypoint": {
+        "routeLon": 120.50665207154643,
+        "routeLat": 30.2,
+        "routeSpeed": 20,
+        "routeRadius": 50
+      },
+      "remainingWaypointNum": 10,
+      "remainingDistanceM": 11943.16,
+      "estimatedRemainingTimeS": 1351.05,
+      "completionRate": 0.18
+    }
+  },
+  {
+    "simId": "local-civilian",
+    "id": "crossing_km",
+    "code": "trackingMode",
+    "status": 1,
+    "description": "stopping",
+    "params": {
+      "nextWaypointIndex": 1,
+      "nextWaypoint": {
+        "routeLon": 120.50665207154643,
+        "routeLat": 30.2,
+        "routeSpeed": 20,
+        "routeRadius": 50
+      },
+      "remainingWaypointNum": 10,
+      "remainingDistanceM": 11942.1,
+      "estimatedRemainingTimeS": 3100.11,
+      "completionRate": 0.19
+    }
+  },
+  {
+    "simId": "local-civilian",
+    "id": "crossing_km",
+    "code": "trackingMode",
+    "status": 2,
+    "description": "stopped",
+    "params": {
+      "nextWaypointIndex": 1,
+      "nextWaypoint": {
+        "routeLon": 120.50665207154643,
+        "routeLat": 30.2,
+        "routeSpeed": 20,
+        "routeRadius": 50
+      },
+      "remainingWaypointNum": 10,
+      "remainingDistanceM": 11941.97,
+      "estimatedRemainingTimeS": 13094.65,
+      "completionRate": 0.19
+    }
+  }
+]

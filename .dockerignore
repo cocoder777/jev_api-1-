@@ -1,0 +1,13 @@
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/tests
+**/examples
+*.zip
+*.tar
+*.log
+.venv
+models
+server/experiments
+
+.venv-kev

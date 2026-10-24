@@ -1,0 +1,342 @@
+[
+  {
+    "simId": "local-civilian",
+    "id": "straight",
+    "code": "trackingMode",
+    "status": 1,
+    "description": "tracking",
+    "params": {
+      "nextWaypointIndex": 1,
+      "nextWaypoint": {
+        "routeLon": 120.5,
+        "routeLat": 30.20062882069888,
+        "routeSpeed": 6.0,
+        "routeRadius": 8.0
+      },
+      "remainingWaypointNum": 1,
+      "remainingDistanceM": null,
+      "estimatedRemainingTimeS": null,
+      "completionRate": null
+    }
+  },
+  {
+    "simId": "local-civilian",
+    "id": "straight",
+    "code": "trackingMode",
+    "status": 1,
+    "description": "tracking",
+    "params": {
+      "nextWaypointIndex": 1,
+      "nextWaypoint": {
+        "routeLon": 120.5,
+        "routeLat": 30.20062882069888,
+        "routeSpeed": 6.0,
+        "routeRadius": 8.0
+      },
+      "remainingWaypointNum": 1,
+      "remainingDistanceM": 70.0,
+      "estimatedRemainingTimeS": null,
+      "completionRate": 0.0
+    }
+  },
+  {
+    "simId": "local-civilian",
+    "id": "straight",
+    "code": "trackingMode",
+    "status": 1,
+    "description": "tracking",
+    "params": {
+      "nextWaypointIndex": 1,
+      "nextWaypoint": {
+        "routeLon": 120.5,
+        "routeLat": 30.20062882069888,
+        "routeSpeed": 6.0,
+        "routeRadius": 8.0
+      },
+      "remainingWaypointNum": 1,
+      "remainingDistanceM": 70.0,
+      "estimatedRemainingTimeS": null,
+      "completionRate": 0.0
+    }
+  },
+  {
+    "simId": "local-civilian",
+    "id": "straight",
+    "code": "trackingMode",
+    "status": 1,
+    "description": "tracking",
+    "params": {
+      "nextWaypointIndex": 1,
+      "nextWaypoint": {
+        "routeLon": 120.5,
+        "routeLat": 30.20062882069888,
+        "routeSpeed": 6.0,
+        "routeRadius": 8.0
+      },
+      "remainingWaypointNum": 1,
+      "remainingDistanceM": 70.04,
+      "estimatedRemainingTimeS": 272.28,
+      "completionRate": 0.0
+    }
+  },
+  {
+    "simId": "local-civilian",
+    "id": "straight",
+    "code": "trackingMode",
+    "status": 1,
+    "description": "tracking",
+    "params": {
+      "nextWaypointIndex": 1,
+      "nextWaypoint": {
+        "routeLon": 120.5,
+        "routeLat": 30.20062882069888,
+        "routeSpeed": 6.0,
+        "routeRadius": 8.0
+      },
+      "remainingWaypointNum": 1,
+      "remainingDistanceM": 70.3,
+      "estimatedRemainingTimeS": 227.75,
+      "completionRate": 0.0
+    }
+  },
+  {
+    "simId": "local-civilian",
+    "id": "straight",
+    "code": "trackingMode",
+    "status": 1,
+    "description": "tracking",
+    "params": {
+      "nextWaypointIndex": 1,
+      "nextWaypoint": {
+        "routeLon": 120.5,
+        "routeLat": 30.20062882069888,
+        "routeSpeed": 6.0,
+        "routeRadius": 8.0
+      },
+      "remainingWaypointNum": 1,
+      "remainingDistanceM": 70.3,
+      "estimatedRemainingTimeS": 227.75,
+      "completionRate": 0.0
+    }
+  },
+  {
+    "simId": "local-civilian",
+    "id": "straight",
+    "code": "trackingMode",
+    "status": 1,
+    "description": "tracking",
+    "params": {
+      "nextWaypointIndex": 1,
+      "nextWaypoint": {
+        "routeLon": 120.5,
+        "routeLat": 30.20062882069888,
+        "routeSpeed": 6.0,
+        "routeRadius": 8.0
+      },
+      "remainingWaypointNum": 1,
+      "remainingDistanceM": 70.69,
+      "estimatedRemainingTimeS": 229.0,
+      "completionRate": 0.0
+    }
+  },
+  {
+    "simId": "local-civilian",
+    "id": "straight",
+    "code": "trackingMode",
+    "status": 1,
+    "description": "tracking",
+    "params": {
+      "nextWaypointIndex": 1,
+      "nextWaypoint": {
+        "routeLon": 120.5,
+        "routeLat": 30.20062882069888,
+        "routeSpeed": 6.0,
+        "routeRadius": 8.0
+      },
+      "remainingWaypointNum": 1,
+      "remainingDistanceM": 70.87,
+      "estimatedRemainingTimeS": 114.79,
+      "completionRate": 0.0
+    }
+  },
+  {
+    "simId": "local-civilian",
+    "id": "straight",
+    "code": "trackingMode",
+    "status": 1,
+    "description": "tracking",
+    "params": {
+      "nextWaypointIndex": 1,
+      "nextWaypoint": {
+        "routeLon": 120.5,
+        "routeLat": 30.20062882069888,
+        "routeSpeed": 6.0,
+        "routeRadius": 8.0
+      },
+      "remainingWaypointNum": 1,
+      "remainingDistanceM": 69.06,
+      "estimatedRemainingTimeS": 33.56,
+      "completionRate": 1.34
+    }
+  },
+  {
+    "simId": "local-civilian",
+    "id": "straight",
+    "code": "trackingMode",
+    "status": 1,
+    "description": "tracking",
+    "params": {
+      "nextWaypointIndex": 1,
+      "nextWaypoint": {
+        "routeLon": 120.5,
+        "routeLat": 30.20062882069888,
+        "routeSpeed": 6.0,
+        "routeRadius": 8.0
+      },
+      "remainingWaypointNum": 1,
+      "remainingDistanceM": 69.06,
+      "estimatedRemainingTimeS": 33.56,
+      "completionRate": 1.34
+    }
+  },
+  {
+    "simId": "local-civilian",
+    "id": "straight",
+    "code": "trackingMode",
+    "status": 1,
+    "description": "tracking",
+    "params": {
+      "nextWaypointIndex": 1,
+      "nextWaypoint": {
+        "routeLon": 120.5,
+        "routeLat": 30.20062882069888,
+        "routeSpeed": 6.0,
+        "routeRadius": 8.0
+      },
+      "remainingWaypointNum": 1,
+      "remainingDistanceM": 68.02,
+      "estimatedRemainingTimeS": 94.45,
+      "completionRate": 2.82
+    }
+  },
+  {
+    "simId": "local-civilian",
+    "id": "straight",
+    "code": "trackingMode",
+    "status": 1,
+    "description": "tracking",
+    "params": {
+      "nextWaypointIndex": 1,
+      "nextWaypoint": {
+        "routeLon": 120.5,
+        "routeLat": 30.20062882069888,
+        "routeSpeed": 6.0,
+        "routeRadius": 8.0
+      },
+      "remainingWaypointNum": 1,
+      "remainingDistanceM": 68.46,
+      "estimatedRemainingTimeS": 190.12,
+      "completionRate": 2.2
+    }
+  },
+  {
+    "simId": "local-civilian",
+    "id": "straight",
+    "code": "trackingMode",
+    "status": 1,
+    "description": "tracking",
+    "params": {
+      "nextWaypointIndex": 1,
+      "nextWaypoint": {
+        "routeLon": 120.5,
+        "routeLat": 30.20062882069888,
+        "routeSpeed": 6.0,
+        "routeRadius": 8.0
+      },
+      "remainingWaypointNum": 1,
+      "remainingDistanceM": 68.84,
+      "estimatedRemainingTimeS": 223.03,
+      "completionRate": 1.65
+    }
+  },
+  {
+    "simId": "local-civilian",
+    "id": "straight",
+    "code": "trackingMode",
+    "status": 1,
+    "description": "stopping",
+    "params": {
+      "nextWaypointIndex": 1,
+      "nextWaypoint": {
+        "routeLon": 120.5,
+        "routeLat": 30.20062882069888,
+        "routeSpeed": 6.0,
+        "routeRadius": 8.0
+      },
+      "remainingWaypointNum": 1,
+      "remainingDistanceM": 68.84,
+      "estimatedRemainingTimeS": 223.03,
+      "completionRate": 1.65
+    }
+  },
+  {
+    "simId": "local-civilian",
+    "id": "straight",
+    "code": "trackingMode",
+    "status": 1,
+    "description": "stopping",
+    "params": {
+      "nextWaypointIndex": 1,
+      "nextWaypoint": {
+        "routeLon": 120.5,
+        "routeLat": 30.20062882069888,
+        "routeSpeed": 6.0,
+        "routeRadius": 8.0
+      },
+      "remainingWaypointNum": 1,
+      "remainingDistanceM": 69.2,
+      "estimatedRemainingTimeS": 224.21,
+      "completionRate": 1.14
+    }
+  },
+  {
+    "simId": "local-civilian",
+    "id": "straight",
+    "code": "trackingMode",
+    "status": 1,
+    "description": "stopping",
+    "params": {
+      "nextWaypointIndex": 1,
+      "nextWaypoint": {
+        "routeLon": 120.5,
+        "routeLat": 30.20062882069888,
+        "routeSpeed": 6.0,
+        "routeRadius": 8.0
+      },
+      "remainingWaypointNum": 1,
+      "remainingDistanceM": 69.33,
+      "estimatedRemainingTimeS": null,
+      "completionRate": 0.96
+    }
+  },
+  {
+    "simId": "local-civilian",
+    "id": "straight",
+    "code": "trackingMode",
+    "status": 2,
+    "description": "stopped",
+    "params": {
+      "nextWaypointIndex": 1,
+      "nextWaypoint": {
+        "routeLon": 120.5,
+        "routeLat": 30.20062882069888,
+        "routeSpeed": 6.0,
+        "routeRadius": 8.0
+      },
+      "remainingWaypointNum": 1,
+      "remainingDistanceM": 69.33,
+      "estimatedRemainingTimeS": null,
+      "completionRate": 0.96
+    }
+  }
+]

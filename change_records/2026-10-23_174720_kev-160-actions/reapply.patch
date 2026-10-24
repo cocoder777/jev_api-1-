@@ -1,0 +1,2646 @@
+--- a/server/policies/kev_policy.py
++++ b/server/policies/kev_policy.py
+@@ -1,4 +1,4 @@
+-"""Kev decision adapter: configured speed x 16 locally reachable courses."""
++"""Kev decision adapter: eight speeds x twenty locally reachable courses."""
+ import copy
+ import json
+ import logging
+@@ -14,8 +14,9 @@
+ from tools.waypoint_geometry import KNOT_MPS, WaypointGeometry
+ from .waypoint import WaypointPolicy
+ from .turning import DEFAULT_MAX_TURN_RATE_DEG_S, reachable_courses
+-
+-KEV_SPEED_KNOTS = 60.0
++from .waypoint_radius import waypoint_arrival_radius
++
++KEV_SPEEDS_KNOTS = (0., 4., 8., 12., 16., 20., 26., 32.)
+ DEFAULT_KEV_ENDPOINT = 'http://127.0.0.1:18028/v1/systemone'
+ 
+ 
+@@ -64,7 +65,7 @@
+         obs = super().observation(packet)
+         course = obs['boat']['targetCourse']
+         obs['execution'] = {**obs['execution'], 'max_turn_rate_deg_s': self.max_turn_rate_deg_s}
+-        obs['action_space'] = dict(speeds_knots=[KEV_SPEED_KNOTS], courses_deg=reachable_courses(
++        obs['action_space'] = dict(speeds_knots=list(KEV_SPEEDS_KNOTS), courses_deg=reachable_courses(
+             course, self.duration, self.max_turn_rate_deg_s))
+         return obs
+ 
+@@ -78,43 +79,88 @@
+         bearing = math.degrees(math.atan2(geometry.target[0], geometry.target[1])) % 360
+         relative_bearing = (bearing-course+180)%360-180
+         target_side = 'ahead' if abs(relative_bearing) < .005 else ('left' if relative_bearing < 0 else 'right')
++        previous = index - 1
++        previous_radius = (waypoint_arrival_radius(task['planWaypointList'][previous])
++                           if previous >= 0 else None)
++        previous_active = (previous >= 0 and math.hypot(*geometry.waypoints[previous]) <= previous_radius)
++        incoming = bearing
++        cross_track = None
++        if previous >= 0:
++            start, end = geometry.waypoints[previous], geometry.target
++            dx, dy = end[0] - start[0], end[1] - start[1]
++            length = math.hypot(dx, dy)
++            if length > 1e-6:
++                incoming = math.degrees(math.atan2(dx, dy)) % 360
++                cross_track = (dx * -start[1] - dy * -start[0]) / length
++        upcoming = None
++        outgoing = None
++        turn = None
++        if index + 1 < len(geometry.waypoints):
++            point = task['planWaypointList'][index + 1]
++            east, north = geometry.waypoints[index + 1]
++            dx, dy = east - geometry.target[0], north - geometry.target[1]
++            if math.hypot(dx, dy) > 1e-6:
++                outgoing = math.degrees(math.atan2(dx, dy)) % 360
++                turn = (outgoing - incoming + 180) % 360 - 180
++            upcoming = dict(index=index + 1, east_m=east, north_m=north,
++                            passing_speed_ceiling_knots=point['routeSpeed'] / KNOT_MPS,
++                            arrival_radius_m=waypoint_arrival_radius(point))
++        turn_time = abs(turn) / self.max_turn_rate_deg_s if turn is not None else 0.
++        preparation_distance = (boat['targetSpeed'] * KNOT_MPS * (turn_time + self.duration)
++                                + task['arrival_radius_m'])
+         state = dict(
+-            task=f'Control an USV to visit waypoint circles in order at {KEV_SPEED_KNOTS:g} knots while keeping sail stable and short.',
+-            command_speed_knots=KEV_SPEED_KNOTS,
+-            coordinate_system='East/north; course clockwise from north: 0=N, 90=E, 180=S, 270=W. Relative angles: negative=left, positive=right.',
++            task='Visit every mandatory waypoint circle in order. Select speed AND course. Prepare for the next leg before reaching the current waypoint.',
++            coordinate_system='East/north; course clockwise from north: 0=N, 90=E, 180=S, 270=W. Negative relative angles=left; positive=right.',
+             actual_speed_knots=boat['targetSpeed'], actual_course_deg=course,
+-            current_waypoint_index=index, # total_waypoints=len(geometry.waypoints)-1, 
++            available_speeds_knots=list(KEV_SPEEDS_KNOTS), max_speed_knots=max(KEV_SPEEDS_KNOTS),
++            current_waypoint_index=index,
+             target_east_m=geometry.target[0], target_north_m=geometry.target[1],
+-            target_bearing_deg=bearing,
+-            target_relative_bearing_deg=relative_bearing, target_turn_side=target_side,
+-            distance_to_target_m=distance, arrival_radius_m=task['arrival_radius_m'],
+-            command_duration_s=self.duration,
++            target_bearing_deg=bearing, target_relative_bearing_deg=relative_bearing,
++            target_turn_side=target_side, distance_to_target_m=distance,
++            arrival_radius_m=task['arrival_radius_m'],
++            passing_speed_ceiling_knots=limit / KNOT_MPS,
++            speed_limit_scope='Waypoint circles only, not the whole leg. Below the ceiling is valid; do not chase it as a target speed. Cruise faster between circles up to 32 knots when room allows braking. Do not accelerate until outside the previous circle.',
++            previous_circle_active=previous_active,
++            previous_circle_speed_ceiling_knots=(task['planWaypointList'][previous]['routeSpeed'] / KNOT_MPS
++                                                  if previous_active else None),
++            next_waypoint=upcoming, incoming_leg_course_deg=incoming,
++            outgoing_leg_course_deg=outgoing, turn_at_waypoint_deg=turn,
++            estimated_turn_time_s=turn_time, turn_preparation_distance_m=preparation_distance,
++            approaching_corner=turn is not None and abs(turn) > 1. and distance <= preparation_distance,
++            cross_track_error_m=cross_track,
++            cross_track_convention='Positive=left of incoming leg; negative=right. Unavailable on first leg.',
++            command_duration_s=self.duration, max_turn_rate_deg_s=self.max_turn_rate_deg_s,
+             max_turn_deg=min(self.max_turn_rate_deg_s*self.duration, 179.99),
+             recent_decisions=list(getattr(self.local, 'history', ())),
+-            forecast_note='Approximate forecasts obey the configured turn-rate limit.')
+-        previous = index - 1
+-        if previous < 0 or math.hypot(*geometry.waypoints[previous]) > task['arrival_radius_m']:
+-            previous = None
++            forecast_note='Approximate velocity forecasts, not calibrated braking dynamics. Preparation distance estimates travel during the turn, not a guaranteed braking distance.')
+         criteria = {}
+-        for j, target_course in enumerate(obs['action_space']['courses_deg']):
+-            name = f'heading_{j:02d}'
+-            facts = _candidate_facts(obs, geometry, KEV_SPEED_KNOTS*KNOT_MPS,
+-                target_course, f'{target_course:.2f} deg', distance, limit, previous)['approximate_effect']
+-            signed_turn = (target_course-course+180)%360-180
+-            turn = abs(signed_turn)
+-            criteria[name] = dict(absolute_course_deg=target_course,
+-                maneuver='straight' if abs(signed_turn) < .005 else ('left' if signed_turn < 0 else 'right'),
+-                turn_deg=turn, signed_turn_deg=signed_turn,
+-                target_heading_error_deg=abs((bearing-target_course+180)%360-180),
+-                distance_after_m=facts['end_checkpoint_distance_m'],
+-                distance_after_2_steps_m=facts['same_command_preview']['end_checkpoint_distance_m'],
+-                speed_limit_violation=(facts['passing_speed_above_ceiling'] or facts.get('previous_circle_speed_above_ceiling', False)),
+-                approach_speed_warning=facts['approach_margin_speed_above_ceiling'])
++        for speed_index, speed in enumerate(obs['action_space']['speeds_knots']):
++            for heading_index, target_course in enumerate(obs['action_space']['courses_deg']):
++                name = f'speed_{speed_index:02d}__heading_{heading_index:02d}'
++                facts = _candidate_facts(obs, geometry, speed*KNOT_MPS, target_course,
++                    f'{target_course:.2f} deg', distance, limit, previous if previous_active else None,
++                    previous_radius=previous_radius)['approximate_effect']
++                signed_turn = (target_course-course+180)%360-180
++                criteria[name] = dict(speed_knots=speed, absolute_course_deg=target_course,
++                    signed_turn_deg=signed_turn,
++                    target_heading_error_deg=abs((bearing-target_course+180)%360-180),
++                    distance_after_m=facts['end_checkpoint_distance_m'],
++                    distance_after_2_steps_m=facts['same_command_preview']['end_checkpoint_distance_m'],
++                    speed_limit_violation=(facts['passing_speed_above_ceiling']
++                        or facts['same_command_preview']['passing_speed_above_ceiling']
++                        or facts.get('previous_circle_speed_above_ceiling', False)),
++                    approach_speed_warning=facts['approach_margin_speed_above_ceiling'],
++                    estimated_turn_radius_m=(speed*KNOT_MPS/math.radians(self.max_turn_rate_deg_s)
++                                             if speed > 0 else None))
+         instructions = (
+-            'Reach the current waypoint circle. Respect speed limits. Choose a maneuver on target_turn_side; '
+-            'straight when ahead. Prefer smaller target heading error, '
+-            'then smaller forecast distance and less turning. Keep straight when aligned. '
+-            'A target behind the boat may require turning while distance initially increases; avoid repeated reversals.')
++            'First avoid predicted waypoint-circle speed violations. A ceiling is not a desired speed or a whole-leg cap. '
++            'Choose lower speeds early near sharp corners, a low passing ceiling, or a large heading error; '
++            'use next_waypoint and turn_at_waypoint_deg to prepare, but never skip the current circle. '
++            'Outside waypoint circles, prefer efficient faster progress when there is room to slow down. '
++            'Choose a turn toward the current target, straight when aligned; avoid repeated reversals. '
++            'While completing a corner after waypoint switching, keep speed low until aligned with the new leg. '
++            'A target behind may require distance to increase initially. Use zero speed only for necessary braking/stopping; '
++            'a zero-speed command does not rotate the boat in this forecast.')
+         return round_model_values(dict(model='kev-latest', state=state, questions=dict(action=dict(
+             type='choice', instructions=instructions, criteria=criteria))))
+ 
+@@ -153,14 +199,15 @@
+         choice = answer.get('choice')
+         criteria = payload['questions']['action']['criteria']
+         if not isinstance(choice,str) or choice not in criteria:
+-            raise ValueError('Kev returned a choice outside the 16 courses')
++            raise ValueError('Kev returned a choice outside the 160 speed/course actions')
++        speed = criteria[choice]['speed_knots']
+         course = criteria[choice]['absolute_course_deg']
+-        self.local.last_decision = dict(choice=choice, candidate_count=16, selection_mode='single_choice',
+-            speeds_knots=[KEV_SPEED_KNOTS], inference_s=time.perf_counter()-started,
++        self.local.last_decision = dict(choice=choice, candidate_count=len(criteria), selection_mode='single_choice',
++            speeds_knots=list(KEV_SPEEDS_KNOTS), inference_s=time.perf_counter()-started,
+             state=payload['state'], options=payload['questions']['action']['criteria'],
+             instructions=payload['questions']['action']['instructions'], result=result)
+         self.local.history.append(dict(waypoint_index=obs['task']['next_waypoint_index'],
+-            distance_m=round(math.hypot(*WaypointGeometry(obs).target), 2), chosen_course_deg=course))
++            distance_m=round(math.hypot(*WaypointGeometry(obs).target), 2), chosen_speed_knots=speed, chosen_course_deg=course))
+         logging.getLogger(__name__).debug('Kev inference_s=%.6f choice=%s',
+             self.local.last_decision['inference_s'],choice)
+-        return KEV_SPEED_KNOTS*(KNOT_MPS if self.speed_unit=='mps' else 1.),course
++        return speed*(KNOT_MPS if self.speed_unit=='mps' else 1.),course
+--- a/server/policies/turning.py
++++ b/server/policies/turning.py
+@@ -1,13 +1,14 @@
+ """Local course envelope under an explicitly configured yaw-rate assumption."""
+ import math
+ 
+-DEFAULT_MAX_TURN_RATE_DEG_S = 45.0  # Configured prediction limit, not a measured vessel specification.
++DEFAULT_MAX_TURN_RATE_DEG_S = 10.0  # Counterparty simulator's reported turn-rate capability.
++DEFAULT_COURSE_COUNT = 20
+ 
+ 
+-def reachable_courses(course_deg, duration_s, max_turn_rate_deg_s):
+-    """16 representable courses inside the envelope, including quantized straight ahead.
++def reachable_courses(course_deg, duration_s, max_turn_rate_deg_s, count=DEFAULT_COURSE_COUNT):
++    """Representable courses inside the envelope, including quantized straight ahead.
+ 
+-    Start with 16 evenly spaced samples and replace the closest central sample
++    Start with evenly spaced samples and replace the closest central sample
+     with straight ahead. Even sample counts cannot be both symmetric and include zero.
+     Quantize inward so two-decimal commands never exceed the continuous envelope.
+     """
+@@ -15,14 +16,16 @@
+         raise ValueError('Course, duration and max turn rate must be finite')
+     if duration_s <= 0 or max_turn_rate_deg_s <= 0:
+         raise ValueError('Duration and max turn rate must be positive')
++    if type(count) is not int or count < 2:
++        raise ValueError('Course count must be an integer of at least two')
+     span = min(duration_s * max_turn_rate_deg_s, 179.99)
+     lower = math.ceil((course_deg - span) * 100 - 1e-8)
+     upper = math.floor((course_deg + span) * 100 + 1e-8)
+-    if upper - lower < 15:
+-        raise ValueError('Turn range too narrow for 16 distinct two-decimal courses; increase control interval')
+-    samples = [round(lower + (upper-lower)*i/15) for i in range(16)]
++    if upper - lower < count - 1:
++        raise ValueError(f'Turn range too narrow for {count} distinct two-decimal courses; increase control interval')
++    samples = [round(lower + (upper-lower)*i/(count - 1)) for i in range(count)]
+     straight = round(course_deg*100)
+     if lower <= straight <= upper:
+-        nearest = min(range(16),key=lambda i:abs(samples[i]-straight))
++        nearest = min(range(count),key=lambda i:abs(samples[i]-straight))
+         samples[nearest] = straight
+     return [(value % 36000)/100 for value in samples]
+--- a/jev_api/choice_control.py
++++ b/jev_api/choice_control.py
+@@ -84,6 +84,8 @@
+     distance,
+     limit,
+     previous,
++    *,
++    previous_radius=None,
+ ):
+     task = observation["task"]
+     boat = observation["boat"]
+@@ -152,7 +154,7 @@
+         },
+     }
+     if previous is not None:
+-        previous_facts = geometry.motion_facts(motion, previous)
++        previous_facts = geometry.motion_facts(motion, previous, radius=previous_radius)
+         previous_peak = previous_facts["max_speed_in_circle_mps"]
+         previous_limit = task["planWaypointList"][previous]["routeSpeed"]
+         candidate["approximate_effect"].update(
+--- a/server/decision_service.py
++++ b/server/decision_service.py
+@@ -1059,7 +1059,7 @@
+                         help="决策后端，默认 kev；可切换为 jev 或 julia")
+     parser.add_argument("--local-model-path", default=os.getenv("LOCAL_MODEL_PATH", str(Path(__file__).resolve().parents[1] / "models/Julia-1")))
+     parser.add_argument("--kev-endpoint", default=os.getenv("KEV_ENDPOINT", "http://127.0.0.1:18028/v1/systemone"))
+-    parser.add_argument("--max-turn-rate-deg-s", type=float, default=float(os.getenv("MAX_TURN_RATE_DEG_S", str(DEFAULT_MAX_TURN_RATE_DEG_S))), help="Kev转向角速度预测上限，默认45度/秒；1秒周期对应最大转角45度，未实艇标定")
++    parser.add_argument("--max-turn-rate-deg-s", type=float, default=float(os.getenv("MAX_TURN_RATE_DEG_S", str(DEFAULT_MAX_TURN_RATE_DEG_S))), help="Kev转向角速度上限，默认10度/秒；1秒周期对应最大转角10度，按甲方仿真能力配置")
+     parser.add_argument("--initial-course-deg", type=float, default=float(os.environ["INITIAL_COURSE_DEG"]) if os.getenv("INITIAL_COURSE_DEG") else None, help="Kev静止且态势缺少targetCourse时的备用方向；优先使用态势航向")
+     parser.add_argument("--kev-timeout", type=float, default=float(os.getenv("KEV_TIMEOUT", "120")))
+     parser.add_argument("--max-consecutive-errors", type=int,
+--- a/server/tests/test_kev_policy.py
++++ b/server/tests/test_kev_policy.py
+@@ -7,9 +7,9 @@
+ from types import SimpleNamespace
+ sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
+ from server.decision_service import build_json_packet, build_situation_packet, decode_situation_packet, service, decode_speed_course_packet, ALGORITHM_TASK_ID
+-from server.experiments.simulate import scenario, telemetry
++from server.experiments.simulate import scenario, telemetry, lonlat
+ from server.policies.factory import create_policy
+-from server.policies.kev_policy import KEV_SPEED_KNOTS, KevPolicy
++from server.policies.kev_policy import KEV_SPEEDS_KNOTS, KevPolicy
+ from tools.waypoint_geometry import KNOT_MPS
+ from server.policies.turning import reachable_courses
+ from tools.navigation_motion import predict_ground_motion
+@@ -20,43 +20,108 @@
+ 
+ 
+ class KevTests(unittest.TestCase):
++    def route_packet(self, boat_x, boat_y=0., *, completed=1, speed=32., radii=(20., 20., 20.)):
++        packet = self.packet()
++        points = []
++        for (x, y), radius in zip(((0., 0.), (1000., 0.), (1000., 1000.)), radii):
++            lon, lat = lonlat(x, y)
++            points.append(dict(routeLon=lon, routeLat=lat, routeSpeed=4., routeRadius=radius))
++        packet['params'].update(planWaypointList=points, planWaypointNum=3, currentRoute=completed)
++        packet['situation'] = [telemetry(boat_x, boat_y, speed*KNOT_MPS, 90.)]
++        return packet
++
+     def packet(self):
+         packet=scenario('crossing_km')
+         packet['situation']=[telemetry(0,0,0,None)]
+         return packet
+ 
+-    def test_fixed_speed_and_all_sixteen_absolute_courses_decode(self):
+-        packet=self.packet();client=Mock()
+-        policy=KevPolicy(client=client,max_speed_knots=3.,initial_course_deg=90.)
+-        for i,course in enumerate(reachable_courses(90.,1.,45.)):
+-            name=f'heading_{i:02d}'
+-            client.return_value=answer(name)
+-            self.assertEqual(policy(packet),(KEV_SPEED_KNOTS,course))
+-        request=client.call_args.args[0]
+-        criteria=request['questions']['action']['criteria']
+-        self.assertEqual(len(criteria),16)
+-        self.assertEqual({v['absolute_course_deg'] for v in criteria.values()}, set(reachable_courses(90.,1.,45.)))
+-        self.assertEqual(request['state']['command_speed_knots'],KEV_SPEED_KNOTS)
+-        self.assertEqual(request['state']['max_turn_deg'],45.)
+-        self.assertIn(f'at {KEV_SPEED_KNOTS:g} knots', request['state']['task'])
+-        self.assertAlmostEqual(request['state']['target_bearing_deg'],90.)
+-        self.assertNotIn('sign',request['state'])
+-        self.assertNotIn('threatLevel',request['state'])
++    def test_all_160_speed_course_combinations_decode(self):
++        packet = self.packet()
++        client = Mock()
++        policy = KevPolicy(client=client, max_speed_knots=3., initial_course_deg=90.)
++        payload = policy._request(policy.observation(packet))
++        criteria = payload['questions']['action']['criteria']
++        self.assertEqual(len(criteria), 160)
++        self.assertEqual(len({v['absolute_course_deg'] for v in criteria.values()}), 20)
++        self.assertEqual({v['speed_knots'] for v in criteria.values()}, set(KEV_SPEEDS_KNOTS))
++        self.assertEqual(KEV_SPEEDS_KNOTS, (0., 4., 8., 12., 16., 20., 26., 32.))
++        # Reuse the generated geometry facts; exercise the real decoder for every action.
++        with patch.object(policy, '_request', return_value=payload):
++            for name, candidate in criteria.items():
++                client.return_value = answer(name)
++                self.assertEqual(policy(packet), (candidate['speed_knots'], candidate['absolute_course_deg']))
++        self.assertEqual(policy.local.last_decision['candidate_count'], 160)
++        self.assertEqual(payload['state']['max_turn_deg'], 10.)
++        self.assertAlmostEqual(payload['state']['target_bearing_deg'], 90.)
++        self.assertNotIn('sign', payload['state'])
++        self.assertNotIn('threatLevel', payload['state'])
+ 
+     def test_binary_control_preserves_half_degree_course_and_units(self):
+         packet=self.packet();state=packet.pop('situation')
+-        policy=KevPolicy(client=Mock(return_value=answer('heading_01')),initial_course_deg=90.,max_turn_rate_deg_s=5.)
++        policy=KevPolicy(client=Mock(return_value=answer('speed_07__heading_01')),initial_course_deg=90.,max_turn_rate_deg_s=5.)
+         decoded=decode_speed_course_packet(service(build_json_packet(packet,ALGORITHM_TASK_ID),policy,tuple(state)))
+-        self.assertEqual(decoded['speed'],KEV_SPEED_KNOTS)
+-        self.assertEqual(decoded['course'],85.67)
++        self.assertEqual(decoded['speed'],max(KEV_SPEEDS_KNOTS))
++        self.assertEqual(decoded['course'],85.53)
+         packet['situation']=state
+-        policy=KevPolicy(client=Mock(return_value=answer('heading_15')),speed_unit='mps',initial_course_deg=90.,max_turn_rate_deg_s=5.)
++        policy=KevPolicy(client=Mock(return_value=answer('speed_07__heading_19')),speed_unit='mps',initial_course_deg=90.,max_turn_rate_deg_s=5.)
+         speed,course=policy(packet)
+-        self.assertAlmostEqual(speed,KEV_SPEED_KNOTS*KNOT_MPS)
++        self.assertAlmostEqual(speed,max(KEV_SPEEDS_KNOTS)*KNOT_MPS)
+         self.assertEqual(course,95.)
+ 
++    def test_low_waypoint_ceiling_does_not_cap_speed_halfway_along_the_leg(self):
++        packet = self.route_packet(500.)
++        client = Mock(return_value=answer('speed_07__heading_09'))
++        policy = KevPolicy(client=client)
++        self.assertEqual(policy(packet), (32., 90.))
++        payload = client.call_args.args[0]
++        self.assertEqual(payload['state']['passing_speed_ceiling_knots'], 4.)
++        self.assertFalse(payload['state']['previous_circle_active'])
++        self.assertFalse(payload['questions']['action']['criteria']['speed_07__heading_09']['speed_limit_violation'])
++
++    def test_near_waypoint_fast_option_violates_ceiling_and_slow_option_can_brake(self):
++        policy = KevPolicy(client=Mock())
++        payload = policy._request(policy.observation(self.route_packet(970.)))
++        candidates = payload['questions']['action']['criteria']
++        self.assertTrue(candidates['speed_07__heading_09']['speed_limit_violation'])
++        self.assertFalse(candidates['speed_01__heading_09']['speed_limit_violation'])
++        self.assertEqual(payload['state']['passing_speed_ceiling_knots'], 4.)
++        self.assertTrue(payload['state']['approaching_corner'])
++        # At 50m the first one-second forecast stays outside the 20m circle,
++        # but the two-second preview enters it and must already flag speeding.
++        payload = policy._request(policy.observation(self.route_packet(950.)))
++        self.assertGreater(payload['questions']['action']['criteria']['speed_07__heading_09']['distance_after_m'], 20.)
++        self.assertLess(payload['questions']['action']['criteria']['speed_07__heading_09']['distance_after_2_steps_m'], 20.)
++        self.assertTrue(payload['questions']['action']['criteria']['speed_07__heading_09']['speed_limit_violation'])
++
++    def test_previous_circle_remains_limited_until_its_own_boundary_is_exited(self):
++        policy = KevPolicy(client=Mock())
++        packet = self.route_packet(50., speed=4., radii=(100., 20., 20.))
++        payload = policy._request(policy.observation(packet))
++        self.assertTrue(payload['state']['previous_circle_active'])
++        candidates = payload['questions']['action']['criteria']
++        self.assertTrue(candidates['speed_07__heading_09']['speed_limit_violation'])
++        self.assertFalse(candidates['speed_01__heading_09']['speed_limit_violation'])
++        packet['situation'] = [telemetry(150., 0., 4.*KNOT_MPS, 90.)]
++        payload = policy._request(policy.observation(packet))
++        self.assertFalse(payload['state']['previous_circle_active'])
++        self.assertFalse(payload['questions']['action']['criteria']['speed_07__heading_09']['speed_limit_violation'])
++
++    def test_lookahead_reports_next_leg_corner_and_signed_cross_track(self):
++        policy = KevPolicy(client=Mock())
++        packet = self.route_packet(500., 25.)
++        state = policy._request(policy.observation(packet))['state']
++        self.assertEqual(state['current_waypoint_index'], 1)
++        self.assertEqual(state['next_waypoint']['index'], 2)
++        self.assertAlmostEqual(state['turn_at_waypoint_deg'], -90., delta=.01)
++        self.assertAlmostEqual(state['cross_track_error_m'], 25., delta=.01)
++        self.assertAlmostEqual(state['estimated_turn_time_s'], 9., delta=.01)
++        packet['params']['currentRoute'] = 2
++        final_state = policy._request(policy.observation(packet))['state']
++        self.assertIsNone(final_state['next_waypoint'])
++        self.assertIsNone(final_state['turn_at_waypoint_deg'])
++
+     def test_recent_history_is_bounded_and_reset_for_new_task(self):
+-        client=Mock(return_value=answer('heading_07'))
++        client=Mock(return_value=answer('speed_07__heading_09'))
+         policy=KevPolicy(client=client,initial_course_deg=90.);packet=self.packet()
+         for _ in range(7):policy(packet)
+         self.assertEqual(len(client.call_args.args[0]['state']['recent_decisions']),4)
+@@ -80,10 +145,10 @@
+         state = packet.pop('situation')
+         state[0]['targetSpeed'] = 15.
+         state[0]['targetCourse'] = 90.
+-        with patch.object(KevPolicy, '_call', return_value=answer('heading_07')) as request:
++        with patch.object(KevPolicy, '_call', return_value=answer('speed_07__heading_09')) as request:
+             result = service(build_json_packet(packet, ALGORITHM_TASK_ID), situation=tuple(state))
+         action = decode_speed_course_packet(result)
+-        self.assertEqual(action['speed'], KEV_SPEED_KNOTS)
++        self.assertEqual(action['speed'], max(KEV_SPEEDS_KNOTS))
+         self.assertEqual(action['course'], 90.)
+         self.assertEqual(request.call_args.args[0]['model'], 'kev-latest')
+ 
+@@ -98,7 +163,7 @@
+         self.assertEqual(save.call_args.args[0][-1]['command']['speed'], 0.)
+ 
+     def test_model_payload_rounds_every_float_including_candidates_and_history(self):
+-        client=Mock(return_value=answer('heading_01'))
++        client=Mock(return_value=answer('speed_07__heading_01'))
+         policy=KevPolicy(client=client,duration=.123456,speed_transition=.456789)
+         packet=self.packet()
+         packet['situation'][0].update(targetSpeed=12.345678,targetCourse=91.234567)
+@@ -123,7 +188,7 @@
+     def test_reachable_window_wraps_at_north_includes_straight_and_quantizes_inward(self):
+         for center,dt in ((359.,1.),(1.,.2),(91.234567,.123456)):
+             courses=reachable_courses(center,dt,5.)
+-            self.assertEqual(len(set(courses)),16)
++            self.assertEqual(len(set(courses)),20)
+             self.assertTrue(all(abs((c-center+180)%360-180)<=5*dt+1e-8 for c in courses))
+             self.assertIn(round(center,2)%360,courses)
+             self.assertTrue(all(c==round(c,2) for c in courses))
+@@ -141,18 +206,18 @@
+                 state = packet.pop('situation')[0]
+                 state.update(targetSpeed=0., targetCourse=course)
+                 state = decode_situation_packet(build_situation_packet(state))
+-                client = Mock(return_value=answer('heading_07'))
++                client = Mock(return_value=answer('speed_07__heading_09'))
+                 policy = KevPolicy(client=client)
+                 result = service(build_json_packet(packet, ALGORITHM_TASK_ID), policy, (state,))
+                 action = decode_speed_course_packet(result)
+-                self.assertEqual(action['speed'], KEV_SPEED_KNOTS)
++                self.assertEqual(action['speed'], max(KEV_SPEEDS_KNOTS))
+                 self.assertEqual(action['course'], course)
+                 payload = client.call_args.args[0]
+                 self.assertEqual(payload['state']['actual_speed_knots'], 0.)
+                 self.assertEqual(payload['state']['actual_course_deg'], course)
+ 
+     def test_stopped_boat_uses_latest_situation_instead_of_configured_course(self):
+-        client = Mock(return_value=answer('heading_07'))
++        client = Mock(return_value=answer('speed_07__heading_09'))
+         policy = KevPolicy(client=client, initial_course_deg=180.)
+         packet = self.packet()
+         state = packet['situation'][0]
+@@ -161,7 +226,7 @@
+         state.update(targetSpeed=0., targetCourse=230., longitude=120.51, latitude=30.21)
+         speed, course = policy(packet)
+         payload = client.call_args.args[0]
+-        self.assertEqual(speed, KEV_SPEED_KNOTS)
++        self.assertEqual(speed, max(KEV_SPEEDS_KNOTS))
+         self.assertEqual(course, 230.)
+         self.assertEqual(payload['state']['actual_course_deg'], 230.)
+         self.assertEqual(policy.observation(packet)['boat']['longitude'], 120.51)
+@@ -176,13 +241,13 @@
+                     KevPolicy(client=Mock(), initial_course_deg=90.).observation(packet)
+ 
+     def test_control_interval_scales_default_turn_range(self):
+-        client = Mock(return_value=answer('heading_00'))
++        client = Mock(return_value=answer('speed_07__heading_00'))
+         policy = KevPolicy(client=client, initial_course_deg=90., duration=.2)
+         _, course = policy(self.packet())
+-        self.assertEqual(course, 81.)
++        self.assertEqual(course, 88.)
+         payload = client.call_args.args[0]
+-        self.assertEqual(payload['state']['max_turn_deg'], 9.)
+-        self.assertEqual(payload['questions']['action']['criteria']['heading_15']['absolute_course_deg'], 99.)
++        self.assertEqual(payload['state']['max_turn_deg'], 2.)
++        self.assertEqual(payload['questions']['action']['criteria']['speed_07__heading_19']['absolute_course_deg'], 92.)
+ 
+     def test_motion_and_simulation_obey_the_same_rate_limit(self):
+         speed=15*KNOT_MPS
+@@ -197,7 +262,7 @@
+         self.assertAlmostEqual(x,motion['endpoint'][0]);self.assertAlmostEqual(y,motion['endpoint'][1])
+ 
+     def test_transition_fields_removed_and_optional_prompt_fields_do_not_drive_history(self):
+-        client=Mock(return_value=answer('heading_07'))
++        client=Mock(return_value=answer('speed_07__heading_09'))
+         policy=KevPolicy(client=client,initial_course_deg=90.)
+         original=policy._request
+         def stripped(obs):
+@@ -213,7 +278,7 @@
+         self.assertEqual(len(policy.local.history),1)
+ 
+     def test_relative_bearing_and_signed_turn_resolve_side_rear_target(self):
+-        client=Mock(return_value=answer('heading_00'))
++        client=Mock(return_value=answer('speed_07__heading_00'))
+         policy=KevPolicy(client=client,initial_course_deg=90.)
+         packet=self.packet();packet['params']['currentRoute']=1
+         packet['situation']=[telemetry(640,0,15*KNOT_MPS,90.)]
+@@ -221,7 +286,7 @@
+         payload=client.call_args.args[0]
+         self.assertLess(payload['state']['target_relative_bearing_deg'],-90.)
+         self.assertEqual(payload['state']['target_turn_side'],'left')
+-        self.assertEqual(payload['questions']['action']['criteria']['heading_00']['maneuver'],'left')
+-        self.assertEqual(payload['questions']['action']['criteria']['heading_07']['maneuver'],'straight')
+-        self.assertEqual(payload['questions']['action']['criteria']['heading_00']['signed_turn_deg'],-45.)
+-        self.assertEqual(payload['questions']['action']['criteria']['heading_15']['signed_turn_deg'],45.)
++        self.assertLess(payload['questions']['action']['criteria']['speed_07__heading_00']['signed_turn_deg'], 0.)
++        self.assertEqual(payload['questions']['action']['criteria']['speed_07__heading_09']['signed_turn_deg'], 0.)
++        self.assertEqual(payload['questions']['action']['criteria']['speed_07__heading_00']['signed_turn_deg'],-10.)
++        self.assertEqual(payload['questions']['action']['criteria']['speed_07__heading_19']['signed_turn_deg'],10.)
+--- a/server/tests/test_task_control.py
++++ b/server/tests/test_task_control.py
+@@ -69,7 +69,7 @@
+                 self.assertEqual(policy.current_route(), completed)
+ 
+     def test_single_waypoint_stops_without_another_model_call_and_latches_arrival(self):
+-        client = Mock(return_value={'answers': {'action': {'type': 'choice', 'choice': 'heading_07'}}})
++        client = Mock(return_value={'answers': {'action': {'type': 'choice', 'choice': 'speed_07__heading_09'}}})
+         policy = KevPolicy(client=client)
+         packet = dict(task(count=1), situation=(state(),))
+         self.assertGreater(policy(packet)[0], 0.)
+--- a/server/tests/test_service_config.py
++++ b/server/tests/test_service_config.py
+@@ -74,7 +74,7 @@
+                 if isinstance(policy, KevPolicy):
+                     self.assertEqual(policy.endpoint, "http://127.0.0.1:18028/v1/systemone")
+                     self.assertEqual(policy.timeout, 120.)
+-                    self.assertEqual(policy.max_turn_rate_deg_s, 45.)
++                    self.assertEqual(policy.max_turn_rate_deg_s, 10.)
+                 else:
+                     self.assertEqual(policy.endpoint, "https://configured.example/v1/systemone")
+                     self.assertEqual(os.environ["JEV_API_KEY"], "test-only-key")
+--- a/server/experiments/simulate.py
++++ b/server/experiments/simulate.py
+@@ -289,9 +289,9 @@
+         p.error('steps, dt, and udp-seconds must be positive')
+     effective_speeds = [10., 20.] if args.backend == 'julia' else [args.max_speed_knots * f for f in (0, .05, .1, .2, .35, .5, .75, 1)]
+     if args.backend == 'kev':
+-        from server.policies.kev_policy import KEV_SPEED_KNOTS
+-        effective_speeds = [KEV_SPEED_KNOTS]
+-        print(f'Kev: {KEV_SPEED_KNOTS:g} knots, 16 local courses, turn rate <= {args.max_turn_rate_deg_s:g} deg/s, interval {args.dt:g}s, initial direction {args.initial_course_deg:g} deg (simulation assumption).', flush=True)
++        from server.policies.kev_policy import KEV_SPEEDS_KNOTS
++        effective_speeds = list(KEV_SPEEDS_KNOTS)
++        print(f'Kev: {list(KEV_SPEEDS_KNOTS)} knots, 20 local courses (160 actions), turn rate <= {args.max_turn_rate_deg_s:g} deg/s, interval {args.dt:g}s, initial direction {args.initial_course_deg:g} deg (simulation assumption).', flush=True)
+     if args.backend == 'julia':
+         print('Julia uses fixed speeds [10, 20] knots and 16 options; --max-speed-knots does not change Julia speeds.', flush=True)
+     out = args.output.resolve(); out.mkdir(parents=True, exist_ok=True)
+--- a/server/README.md
++++ b/server/README.md
+@@ -12,7 +12,7 @@
+ python3 server/decision_service.py --multicast-interface 192.168.3.202
+ ```
+ 
+-Kev 通过独立接口 `http://127.0.0.1:18028/v1/systemone` 推理，速度由 `policies/kev_policy.py` 的 `KEV_SPEED_KNOTS` 常量统一设置，并提供16个局部可达航向候选。服务接收 `0x0660` 的 `trackingMode` 任务、`0x0666` 停止请求和 `0x0060` 态势，按 `params.platCode == platformId` 选本艇，输出 `0x0662` 控制报文。可恢复错误连续达到3次才返回 `0x0664` 失败状态；任务/停止请求支持最多10片的协议分包重组。
++Kev 通过独立接口 `http://127.0.0.1:18028/v1/systemone` 推理，速度由 `policies/kev_policy.py` 的 `KEV_SPEEDS_KNOTS` 设置为0、4、8、12、16、20、26、32节，与20个局部可达航向组合成160个动作，一次选择速度和航向。服务接收 `0x0660` 的 `trackingMode` 任务、`0x0666` 停止请求和 `0x0060` 态势，按 `params.platCode == platformId` 选本艇，输出 `0x0662` 控制报文。可恢复错误连续达到3次才返回 `0x0664` 失败状态；任务/停止请求支持最多10片的协议分包重组。
+ 
+ Jev 保留原有64个速度/航向候选及本机密钥配置，可显式切换：
+ 
+@@ -33,8 +33,9 @@
+ 适配约定：
+ 
+ - 默认态势速度、航路点 `routeSpeed` 和控制输出均按节处理；若外部三者均为 m/s，使用 `--speed-unit mps`。协议文档未明确三者物理单位，接实艇前需核对。Jev 内部航路点上限统一为 m/s。
+-- 航向为北起顺时针绝对角度。Jev 最大候选速度默认 30 节（`--max-speed-knots`）；Kev 使用固定配置速度，转向角速度参数为 `--max-turn-rate-deg-s`，默认45度/秒。1秒周期对应当前方向±45度的候选范围，0.2秒周期对应±9度。该参数用于候选生成和运动预测，须按实际船舶配置。Kev 每轮读取最新态势中的位置、速度与 `targetCourse`，速度为0时也保留有效航向；只有静止且未提供航向时，才需要 `--initial-course-deg` 作为备用。
++- 航向为北起顺时针绝对角度。Jev 最大候选速度默认 30 节（`--max-speed-knots`）；Kev 使用8档速度，最高32节；`--max-speed-knots` 仍仅影响Jev，Kev档位在 `KEV_SPEEDS_KNOTS` 中配置。转向角速度参数为 `--max-turn-rate-deg-s`，按甲方仿真能力默认10度/秒。1秒周期对应当前方向±10度的20个航向（含直行），0.2秒周期对应±2度。该参数同步用于候选生成和运动预测。Kev 每轮读取最新态势中的位置、速度与 `targetCourse`，速度为0时也保留有效航向；只有静止且未提供航向时，才需要 `--initial-course-deg` 作为备用。
+ - `planWaypointList` 中每一项都是必须访问的目标，支持只有1个航点；当前位置取自态势，不把列表首项当成起点。`currentRoute` 是已完成航点数量：0从列表第1点开始，1从第2点开始。可选 `next_waypoint_index` 为从0开始的明确目标索引。`routeRadius` 允许为0或正数，负数及非有限值无效；用于到达判断时，0或未提供该字段均使用默认20米容差，正数沿用该值；列表最后一项就是终点。
++- Kev 将 `routeSpeed` 理解为经过该航点到达圈时的速度上限，而不是必须达到的速度，也不限制整个航段。两航点圈之间保留最高32节选项；预测会标记进入当前圈、两周期预览进入当前圈，以及驶离上一圈前的超速。模型同时看到当前目标、下一目标、入/出航段方向、转弯角和横向偏差，并被要求在锐弯或低限速点前减速，完成转向后再提速。预测沿用既有速度响应近似，实际减速性能仍需现场验证。
+ - `--control-interval` 默认1秒，也是候选动作预测时长。每个任务使用独立模型工作线程，控制发送不被推理阻塞；同一任务最多一个请求在途。航点改变、到达终点或收到停止请求后，不采用之前航点的滞后结果。
+ - 控制台保留任务接收（ID、平台、航点数量、起始进度）、停止请求、任务完成和错误信息。态势保持逐包实时接收与缓存，接收日志在所有平台和接收入口之间共享5秒限频；每周期控制与推理明细改为 DEBUG。
+ - `--status-interval` 默认 1 秒。执行中状态由独立定时线程按单调时钟上报，不受模型请求耗时影响。
+@@ -59,4 +60,4 @@
+ 
+ 支持 `--backend julia` 切换到本地 Julia-1。安装、结构、离线模拟、测试结果和原现场地址记录见 [LOCAL_MODELS.md](LOCAL_MODELS.md)。
+ 
+-Kev-4B 独立后端使用固定配置速度、16航向，通过本机官方推理服务接入。安装、启动和测试见 [KEV.md](KEV.md)。
++Kev-4B 独立后端使用8档速度×20航向，共160动作，通过本机官方推理服务接入。安装、启动和测试见 [KEV.md](KEV.md)。
+--- a/server/KEV.md
++++ b/server/KEV.md
+@@ -1,10 +1,16 @@
+ # Kev-4B 本地后端
+ 
+-`decision_service.py` 当前默认使用 Kev-4B，也可显式指定 `--backend kev`；`--backend jev` 与 `--backend julia` 仍可切换。Kev固定速度由 `policies/kev_policy.py` 的 `KEV_SPEED_KNOTS` 统一设置，在每个决策周期内，按当前方向与配置转向角速度计算可达区间，生成**16个局部绝对航向候选**（含直行），一次模型选择。当前默认转向角速度为45°/秒，1秒周期的候选范围为当前方向±45°。`--max-speed-knots` 不改变 Kev 的固定速度。下文15节、5°/秒的测试数据与显式参数属于历史配置。
++`decision_service.py` 默认使用 Kev-4B；Jev、Julia仍可切换。当前动作空间为 **8档速度×20航向=160个选项**，一次选择速度与航向。速度档位由 `policies/kev_policy.py` 的 `KEV_SPEEDS_KNOTS` 配置，默认 **0、4、8、12、16、20、26、32节**。官方运行时 `kev/api.py` 的 Choice 上限为255项，160项在协议范围内。`--max-speed-knots` 仍仅影响Jev，不改变Kev的固定档位列表。
++
++按甲方提供的实际转向能力，默认上限为 **10°/秒**。1秒周期生成当前航向±10°内的20个候选（包含直行）；0.2秒周期为±2°，预测和模拟使用相同约束。
++
++`routeSpeed` 是经过航点到达圈时的限速上限，低于该值有效，不是整段巡航速度。航段中间允许32节；当前圈的一/两周期预测、尚未驶离的上一航点圈分别检查限速，上一圈使用其自身半径。模型看到后续目标、转弯角、出航段方向和横向偏差，被要求提前减速并保持当前航点必须到达。速度响应预测沿用原有过渡时间，并不代表已测得甲方实际减速能力。
++
++以下固定15节、16选项及5°/秒的成绩和请求大小均属于历史版本，不能当作当前160动作版本的实测结果。
+ 
+ ## 结构
+ 
+-- `policies/kev_policy.py`：航点状态、16候选的运动预测事实、最近四步决策、模型请求与动作解码。没有候选排序、剔除或规则代选。所有方向都交给模型。
++- `policies/kev_policy.py`：航点及下一航段状态、160候选的运动预测事实、最近四步决策、模型请求与动作解码。没有候选排序、剔除或规则代选。所有方向都交给模型。
+ - `policies/factory.py`：创建后端，Kev的`--kev-endpoint`与Jev地址独立。
+ - `control_runtime.py`：独立推理工作线程、周期控制发送、连续错误计数、限时续发和终点停车确认；Kev与Jev共用。
+ - `local_models/setup_kev.py`：下载固定运行时、LoRA适配器、决策头和基座，并生成可离线加载的部署副本。
+@@ -58,7 +64,7 @@
+ 
+ 当前任务列表只包含待访问航点，起点取态势位置；`currentRoute=0` 表示尚未完成任何点。报文服务在最后一个航点到达后主动发送0速并根据新鲜态势确认停车，再返回完成状态。本地仿真同步使用停车完成判据（`completion_mode=final_parking`），旧的“到点立即结束”测试仅保留为历史结果。
+ 
+-输出目录包含地图轨迹、速度/耗时三联图、逐步完整输入与模型响应JSONL、汇总与地图快照。实际速度读取当前 `KEV_SPEED_KNOTS` 常量；历史15节测试不代表后来修改的速度配置。加速仿真推理时暂停世界，不代表实艇实时性。
++输出目录包含地图轨迹、速度/耗时三联图、逐步完整输入与模型响应JSONL、汇总与地图快照。可选速度读取当前 `KEV_SPEEDS_KNOTS` 档位；历史15节测试不代表后来修改的速度配置。加速仿真推理时暂停世界，不代表实艇实时性。
+ 
+ 真实localhost UDP测试，仍需先启动Kev服务：
+ 
+@@ -84,25 +90,25 @@
+ 
+ Kev使用独立提示词，明确0/90/180/270度方位、当前目标坐标和方位、每个方向的预测距离/进度及转向量，附最近四步的距离与选择。移除了未定义的tie line要求；任务仍是按序进入航点圈，不要求贴线。相比历史Julia同时改变了模型、候选速度/航向及提示组织，结果不能作为仅换模型的受控对照。
+ 
+-## 本轮实测
++## 历史固定速度实测
+ 
+ 真实RTX5090测试按序到达10/10航点，1825次决策，1824秒仿真时间，平均完整决策217毫秒、P95约219毫秒。固定15节与16选项逐步核对通过。路径存在绕行；最终按进入终点圈完成，没有停车。真实UDP显式停止流程也通过。25项回归测试及两个环境的依赖检查通过。完整结果见 [KEV_REPORT.md](experiments/results/KEV_REPORT.md)。
+ 
+-服务已在本次会话启动并监听本机18028口；若端口已有服务，无需重复启动。停止服务后可用上文命令重新加载。提示词在 `policies/kev_policy.py` 的 `_request()`，可直接查看 `experiments/examples/kev_request.json`；每步完整输入与响应保存在本轮JSONL。
++上述服务启动记录属于历史测试；是否正在监听以本机进程为准。提示词在 `policies/kev_policy.py` 的 `_request()`，可直接查看 `experiments/examples/kev_request.json`；每步完整输入与响应保存在本轮JSONL。
+ 
+ ## 精简提示词与输入精度
+ 
+-当前Kev输入已精简：删去重复的速度说明、候选中重复的固定速度、可由距离直接表达的进展量，以及重复的任务解释。保留目标/坐标约定、预测距离、转向量、限速事实和最近决策。模型问题缩短为“到达当前圈、遵守限速、偏好较小预测距离、避免无谓转向与反复反向”。
++当前输入保留目标/坐标约定、当前与后续航点、预测距离、候选速度与转向量、过点限速事实和最近决策；转弯提前减速，航段中间允许提速。模型仍自行选择动作，没有规则代选。
+ 
+-`policies/kev_policy.py` 的 `round_model_values()` 在请求出口统一递归四舍五入所有浮点数至两位小数，覆盖状态、16个候选、转向/时间参数及历史。保留数值类型，不为凑显示位数转成字符串；例如22.5表示22.50的同一数值。整数与空值保持类型。内部经纬度转换、运动积分和计时保持原精度；这里限制的是模型可见数据，不把经纬度直接截成0.01度。
++`policies/kev_policy.py` 的 `round_model_values()` 在请求出口统一递归四舍五入所有浮点数至两位小数，覆盖状态、160个候选、转向/时间参数及历史。保留数值类型，不为凑显示位数转成字符串；例如22.5表示22.50的同一数值。整数与空值保持类型。内部经纬度转换、运动积分和计时保持原精度；这里限制的是模型可见数据，不把经纬度直接截成0.01度。
+ 
+-精简前初始请求JSON字符数7469，精简后4342，减少约41.9%；这不是token数统计。更新后的输入示例仍在 `experiments/examples/kev_request.json`。历史10/10完整航线结果属于精简前版本，不自动视为精简版本的验证结果；新短测单独保存在 `experiments/results/kev-compact-smoke/`。
++历史16候选版本精简前初始请求JSON字符数7469，精简后4342，减少约41.9%；这不是token数统计。更新后的输入示例仍在 `experiments/examples/kev_request.json`。历史10/10完整航线结果属于精简前版本，不自动视为精简版本的验证结果；新短测单独保存在 `experiments/results/kev-compact-smoke/`。
+ 
+ 
+ ## 当前转向约束及注释字段修正
+ 
+-- `--max-turn-rate-deg-s` 当前默认45度/秒，是候选和预测使用的配置值，未实艇标定；可通过参数或 `MAX_TURN_RATE_DEG_S` 覆盖。历史5度/秒测试保留原配置和结果。
+-- 单周期最大转角 = 角速度上限 × 决策时长。默认1秒为当前方向±45度；0.2秒为±9度。16候选从区间内等距取样，将最接近直行的中间样本替换为直行项（偶数个对称样本不能同时精确包含中心），仍为16项。命令量化到0.01度时向区间内部取整，避免四舍五入后越界。范围不足以表示16个不同两位小数航向时显式报错。
++- `--max-turn-rate-deg-s` 当前默认10度/秒，按甲方提供的转向能力用于候选与预测；可通过参数或 `MAX_TURN_RATE_DEG_S` 覆盖。历史5度/秒测试保留原配置和结果。
++- 单周期最大转角 = 角速度上限 × 决策时长。默认1秒为当前方向±10度；0.2秒为±2度。20航向候选从区间内等距取样，将最接近直行的中间样本替换为直行项（偶数个对称样本不能同时精确包含中心），仍为20项。命令量化到0.01度时向区间内部取整，避免四舍五入后越界。范围不足以表示20个不同两位小数航向时显式报错。
+ - 提示词已移除 `speed_transition_s` 和 `course_transition_s`。速度响应时间仍用于内部启动/变速预测；Kev转向不再使用“任意角度0.5秒完成”，而是角速度受限的近似运动。预测与仿真使用同一约束；原Jev/Julia默认运动模式不变。
+ - 你注释的 `total_waypoints` 和数值限速说明没有运行依赖，保持删减。`arrival_radius_m` 和 `command_duration_s` 恢复为短数值字段：前者定义何时进入目标圈，后者定义预测距离对应多久，具有决策含义。历史记录改由内部观测计算距离，不再读取可被注释掉的提示词字段，避免KeyError。
+ - 报文服务每轮读取最新态势的位置、速度和 `targetCourse`；Kev 在速度为0时也保留态势中的有效航向，0度合法。`--initial-course-deg` 仅在静止且态势未提供航向时作为备用，不覆盖有效态势。模拟器示例90度是其明确设置的向东初始方向；不能根据目标点推测本艇方向。
+--- a/.env.example
++++ b/.env.example
+@@ -26,7 +26,7 @@
+ POLICY_BACKEND=kev
+ KEV_ENDPOINT=http://127.0.0.1:18028/v1/systemone
+ KEV_TIMEOUT=120
+-MAX_TURN_RATE_DEG_S=45
++MAX_TURN_RATE_DEG_S=10
+ # 仅在静止且态势未提供targetCourse时填写备用方向；有效态势航向优先。
+ INITIAL_COURSE_DEG=
+ 
+--- a/compose.yaml
++++ b/compose.yaml
+@@ -26,7 +26,7 @@
+       POLICY_BACKEND: ${POLICY_BACKEND:-kev}
+       KEV_ENDPOINT: ${KEV_ENDPOINT:-http://127.0.0.1:18028/v1/systemone}
+       KEV_TIMEOUT: ${KEV_TIMEOUT:-120}
+-      MAX_TURN_RATE_DEG_S: ${MAX_TURN_RATE_DEG_S:-45}
++      MAX_TURN_RATE_DEG_S: ${MAX_TURN_RATE_DEG_S:-10}
+       INITIAL_COURSE_DEG: ${INITIAL_COURSE_DEG:-}
+       JEV_API_KEY: ${JEV_API_KEY:-}
+       JEV_ENDPOINT: ${JEV_ENDPOINT:-https://api.jevcn.cn/v1/systemone}
+--- a/server/experiments/examples/kev_request.json
++++ b/server/experiments/examples/kev_request.json
+@@ -1,11 +1,21 @@
+ {
+   "model": "kev-latest",
+   "state": {
+-    "task": "Control an USV to visit waypoint circles in order at 60 knots while keeping sail stable and short.",
+-    "command_speed_knots": 60.0,
+-    "coordinate_system": "East/north; course clockwise from north: 0=N, 90=E, 180=S, 270=W. Relative angles: negative=left, positive=right.",
++    "task": "Visit every mandatory waypoint circle in order. Select speed AND course. Prepare for the next leg before reaching the current waypoint.",
++    "coordinate_system": "East/north; course clockwise from north: 0=N, 90=E, 180=S, 270=W. Negative relative angles=left; positive=right.",
+     "actual_speed_knots": 0.0,
+     "actual_course_deg": 90.0,
++    "available_speeds_knots": [
++      0.0,
++      4.0,
++      8.0,
++      12.0,
++      16.0,
++      20.0,
++      26.0,
++      32.0
++    ],
++    "max_speed_knots": 32.0,
+     "current_waypoint_index": 0,
+     "target_east_m": 640.0,
+     "target_north_m": 0.0,
+@@ -14,191 +24,1795 @@
+     "target_turn_side": "ahead",
+     "distance_to_target_m": 640.0,
+     "arrival_radius_m": 50.0,
++    "passing_speed_ceiling_knots": 20.0,
++    "speed_limit_scope": "Waypoint circles only, not the whole leg. Below the ceiling is valid; do not chase it as a target speed. Cruise faster between circles up to 32 knots when room allows braking. Do not accelerate until outside the previous circle.",
++    "previous_circle_active": false,
++    "previous_circle_speed_ceiling_knots": null,
++    "next_waypoint": {
++      "index": 1,
++      "east_m": -320.0,
++      "north_m": 640.0,
++      "passing_speed_ceiling_knots": 20.0,
++      "arrival_radius_m": 50.0
++    },
++    "incoming_leg_course_deg": 90.0,
++    "outgoing_leg_course_deg": 303.69,
++    "turn_at_waypoint_deg": -146.31,
++    "estimated_turn_time_s": 14.63,
++    "turn_preparation_distance_m": 50.0,
++    "approaching_corner": false,
++    "cross_track_error_m": null,
++    "cross_track_convention": "Positive=left of incoming leg; negative=right. Unavailable on first leg.",
+     "command_duration_s": 1.0,
+-    "max_turn_deg": 45.0,
++    "max_turn_rate_deg_s": 10.0,
++    "max_turn_deg": 10.0,
+     "recent_decisions": [],
+-    "forecast_note": "Approximate forecasts obey the configured turn-rate limit."
++    "forecast_note": "Approximate velocity forecasts, not calibrated braking dynamics. Preparation distance estimates travel during the turn, not a guaranteed braking distance."
+   },
+   "questions": {
+     "action": {
+       "type": "choice",
+-      "instructions": "Reach the current waypoint circle. Respect speed limits. Choose a maneuver on target_turn_side; straight when ahead. Prefer smaller target heading error, then smaller forecast distance and less turning. Keep straight when aligned. A target behind the boat may require turning while distance initially increases; avoid repeated reversals.",
++      "instructions": "First avoid predicted waypoint-circle speed violations. A ceiling is not a desired speed or a whole-leg cap. Choose lower speeds early near sharp corners, a low passing ceiling, or a large heading error; use next_waypoint and turn_at_waypoint_deg to prepare, but never skip the current circle. Outside waypoint circles, prefer efficient faster progress when there is room to slow down. Choose a turn toward the current target, straight when aligned; avoid repeated reversals. While completing a corner after waypoint switching, keep speed low until aligned with the new leg. A target behind may require distance to increase initially. Use zero speed only for necessary braking/stopping; a zero-speed command does not rotate the boat in this forecast.",
+       "criteria": {
+-        "heading_00": {
+-          "absolute_course_deg": 45.0,
+-          "maneuver": "left",
+-          "turn_deg": 45.0,
+-          "signed_turn_deg": -45.0,
+-          "target_heading_error_deg": 45.0,
+-          "distance_after_m": 619.92,
+-          "distance_after_2_steps_m": 598.88,
+-          "speed_limit_violation": false,
+-          "approach_speed_warning": false
+-        },
+-        "heading_01": {
+-          "absolute_course_deg": 51.0,
+-          "maneuver": "left",
+-          "turn_deg": 39.0,
+-          "signed_turn_deg": -39.0,
+-          "target_heading_error_deg": 39.0,
+-          "distance_after_m": 619.77,
+-          "distance_after_2_steps_m": 596.44,
+-          "speed_limit_violation": false,
+-          "approach_speed_warning": false
+-        },
+-        "heading_02": {
+-          "absolute_course_deg": 57.0,
+-          "maneuver": "left",
+-          "turn_deg": 33.0,
+-          "signed_turn_deg": -33.0,
+-          "target_heading_error_deg": 33.0,
+-          "distance_after_m": 619.39,
+-          "distance_after_2_steps_m": 594.02,
+-          "speed_limit_violation": false,
+-          "approach_speed_warning": false
+-        },
+-        "heading_03": {
+-          "absolute_course_deg": 63.0,
+-          "maneuver": "left",
+-          "turn_deg": 27.0,
+-          "signed_turn_deg": -27.0,
+-          "target_heading_error_deg": 27.0,
+-          "distance_after_m": 618.84,
+-          "distance_after_2_steps_m": 591.72,
+-          "speed_limit_violation": false,
+-          "approach_speed_warning": false
+-        },
+-        "heading_04": {
+-          "absolute_course_deg": 69.0,
+-          "maneuver": "left",
+-          "turn_deg": 21.0,
+-          "signed_turn_deg": -21.0,
+-          "target_heading_error_deg": 21.0,
+-          "distance_after_m": 618.21,
+-          "distance_after_2_steps_m": 589.64,
+-          "speed_limit_violation": false,
+-          "approach_speed_warning": false
+-        },
+-        "heading_05": {
+-          "absolute_course_deg": 75.0,
+-          "maneuver": "left",
+-          "turn_deg": 15.0,
+-          "signed_turn_deg": -15.0,
+-          "target_heading_error_deg": 15.0,
+-          "distance_after_m": 617.61,
+-          "distance_after_2_steps_m": 587.92,
+-          "speed_limit_violation": false,
+-          "approach_speed_warning": false
+-        },
+-        "heading_06": {
+-          "absolute_course_deg": 81.0,
+-          "maneuver": "left",
+-          "turn_deg": 9.0,
+-          "signed_turn_deg": -9.0,
+-          "target_heading_error_deg": 9.0,
+-          "distance_after_m": 617.14,
+-          "distance_after_2_steps_m": 586.7,
+-          "speed_limit_violation": false,
+-          "approach_speed_warning": false
+-        },
+-        "heading_07": {
++        "speed_00__heading_00": {
++          "speed_knots": 0.0,
++          "absolute_course_deg": 80.0,
++          "signed_turn_deg": -10.0,
++          "target_heading_error_deg": 10.0,
++          "distance_after_m": 640.0,
++          "distance_after_2_steps_m": 640.0,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": null
++        },
++        "speed_00__heading_01": {
++          "speed_knots": 0.0,
++          "absolute_course_deg": 81.05,
++          "signed_turn_deg": -8.95,
++          "target_heading_error_deg": 8.95,
++          "distance_after_m": 640.0,
++          "distance_after_2_steps_m": 640.0,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": null
++        },
++        "speed_00__heading_02": {
++          "speed_knots": 0.0,
++          "absolute_course_deg": 82.11,
++          "signed_turn_deg": -7.89,
++          "target_heading_error_deg": 7.89,
++          "distance_after_m": 640.0,
++          "distance_after_2_steps_m": 640.0,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": null
++        },
++        "speed_00__heading_03": {
++          "speed_knots": 0.0,
++          "absolute_course_deg": 83.16,
++          "signed_turn_deg": -6.84,
++          "target_heading_error_deg": 6.84,
++          "distance_after_m": 640.0,
++          "distance_after_2_steps_m": 640.0,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": null
++        },
++        "speed_00__heading_04": {
++          "speed_knots": 0.0,
++          "absolute_course_deg": 84.21,
++          "signed_turn_deg": -5.79,
++          "target_heading_error_deg": 5.79,
++          "distance_after_m": 640.0,
++          "distance_after_2_steps_m": 640.0,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": null
++        },
++        "speed_00__heading_05": {
++          "speed_knots": 0.0,
++          "absolute_course_deg": 85.26,
++          "signed_turn_deg": -4.74,
++          "target_heading_error_deg": 4.74,
++          "distance_after_m": 640.0,
++          "distance_after_2_steps_m": 640.0,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": null
++        },
++        "speed_00__heading_06": {
++          "speed_knots": 0.0,
++          "absolute_course_deg": 86.32,
++          "signed_turn_deg": -3.68,
++          "target_heading_error_deg": 3.68,
++          "distance_after_m": 640.0,
++          "distance_after_2_steps_m": 640.0,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": null
++        },
++        "speed_00__heading_07": {
++          "speed_knots": 0.0,
++          "absolute_course_deg": 87.37,
++          "signed_turn_deg": -2.63,
++          "target_heading_error_deg": 2.63,
++          "distance_after_m": 640.0,
++          "distance_after_2_steps_m": 640.0,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": null
++        },
++        "speed_00__heading_08": {
++          "speed_knots": 0.0,
++          "absolute_course_deg": 88.42,
++          "signed_turn_deg": -1.58,
++          "target_heading_error_deg": 1.58,
++          "distance_after_m": 640.0,
++          "distance_after_2_steps_m": 640.0,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": null
++        },
++        "speed_00__heading_09": {
++          "speed_knots": 0.0,
+           "absolute_course_deg": 90.0,
+-          "maneuver": "straight",
+-          "turn_deg": 0.0,
+           "signed_turn_deg": 0.0,
+           "target_heading_error_deg": 0.0,
+-          "distance_after_m": 616.85,
+-          "distance_after_2_steps_m": 585.98,
+-          "speed_limit_violation": false,
+-          "approach_speed_warning": false
+-        },
+-        "heading_08": {
+-          "absolute_course_deg": 93.0,
+-          "maneuver": "right",
+-          "turn_deg": 3.0,
+-          "signed_turn_deg": 3.0,
+-          "target_heading_error_deg": 3.0,
+-          "distance_after_m": 616.88,
+-          "distance_after_2_steps_m": 586.06,
+-          "speed_limit_violation": false,
+-          "approach_speed_warning": false
+-        },
+-        "heading_09": {
+-          "absolute_course_deg": 99.0,
+-          "maneuver": "right",
+-          "turn_deg": 9.0,
+-          "signed_turn_deg": 9.0,
+-          "target_heading_error_deg": 9.0,
+-          "distance_after_m": 617.14,
+-          "distance_after_2_steps_m": 586.7,
+-          "speed_limit_violation": false,
+-          "approach_speed_warning": false
+-        },
+-        "heading_10": {
+-          "absolute_course_deg": 105.0,
+-          "maneuver": "right",
+-          "turn_deg": 15.0,
+-          "signed_turn_deg": 15.0,
+-          "target_heading_error_deg": 15.0,
+-          "distance_after_m": 617.61,
+-          "distance_after_2_steps_m": 587.92,
+-          "speed_limit_violation": false,
+-          "approach_speed_warning": false
+-        },
+-        "heading_11": {
+-          "absolute_course_deg": 111.0,
+-          "maneuver": "right",
+-          "turn_deg": 21.0,
+-          "signed_turn_deg": 21.0,
+-          "target_heading_error_deg": 21.0,
+-          "distance_after_m": 618.21,
+-          "distance_after_2_steps_m": 589.64,
+-          "speed_limit_violation": false,
+-          "approach_speed_warning": false
+-        },
+-        "heading_12": {
+-          "absolute_course_deg": 117.0,
+-          "maneuver": "right",
+-          "turn_deg": 27.0,
+-          "signed_turn_deg": 27.0,
+-          "target_heading_error_deg": 27.0,
+-          "distance_after_m": 618.84,
+-          "distance_after_2_steps_m": 591.72,
+-          "speed_limit_violation": false,
+-          "approach_speed_warning": false
+-        },
+-        "heading_13": {
+-          "absolute_course_deg": 123.0,
+-          "maneuver": "right",
+-          "turn_deg": 33.0,
+-          "signed_turn_deg": 33.0,
+-          "target_heading_error_deg": 33.0,
+-          "distance_after_m": 619.39,
+-          "distance_after_2_steps_m": 594.02,
+-          "speed_limit_violation": false,
+-          "approach_speed_warning": false
+-        },
+-        "heading_14": {
+-          "absolute_course_deg": 129.0,
+-          "maneuver": "right",
+-          "turn_deg": 39.0,
+-          "signed_turn_deg": 39.0,
+-          "target_heading_error_deg": 39.0,
+-          "distance_after_m": 619.77,
+-          "distance_after_2_steps_m": 596.44,
+-          "speed_limit_violation": false,
+-          "approach_speed_warning": false
+-        },
+-        "heading_15": {
+-          "absolute_course_deg": 135.0,
+-          "maneuver": "right",
+-          "turn_deg": 45.0,
+-          "signed_turn_deg": 45.0,
+-          "target_heading_error_deg": 45.0,
+-          "distance_after_m": 619.92,
+-          "distance_after_2_steps_m": 598.88,
+-          "speed_limit_violation": false,
+-          "approach_speed_warning": false
++          "distance_after_m": 640.0,
++          "distance_after_2_steps_m": 640.0,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": null
++        },
++        "speed_00__heading_10": {
++          "speed_knots": 0.0,
++          "absolute_course_deg": 90.53,
++          "signed_turn_deg": 0.53,
++          "target_heading_error_deg": 0.53,
++          "distance_after_m": 640.0,
++          "distance_after_2_steps_m": 640.0,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": null
++        },
++        "speed_00__heading_11": {
++          "speed_knots": 0.0,
++          "absolute_course_deg": 91.58,
++          "signed_turn_deg": 1.58,
++          "target_heading_error_deg": 1.58,
++          "distance_after_m": 640.0,
++          "distance_after_2_steps_m": 640.0,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": null
++        },
++        "speed_00__heading_12": {
++          "speed_knots": 0.0,
++          "absolute_course_deg": 92.63,
++          "signed_turn_deg": 2.63,
++          "target_heading_error_deg": 2.63,
++          "distance_after_m": 640.0,
++          "distance_after_2_steps_m": 640.0,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": null
++        },
++        "speed_00__heading_13": {
++          "speed_knots": 0.0,
++          "absolute_course_deg": 93.68,
++          "signed_turn_deg": 3.68,
++          "target_heading_error_deg": 3.68,
++          "distance_after_m": 640.0,
++          "distance_after_2_steps_m": 640.0,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": null
++        },
++        "speed_00__heading_14": {
++          "speed_knots": 0.0,
++          "absolute_course_deg": 94.74,
++          "signed_turn_deg": 4.74,
++          "target_heading_error_deg": 4.74,
++          "distance_after_m": 640.0,
++          "distance_after_2_steps_m": 640.0,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": null
++        },
++        "speed_00__heading_15": {
++          "speed_knots": 0.0,
++          "absolute_course_deg": 95.79,
++          "signed_turn_deg": 5.79,
++          "target_heading_error_deg": 5.79,
++          "distance_after_m": 640.0,
++          "distance_after_2_steps_m": 640.0,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": null
++        },
++        "speed_00__heading_16": {
++          "speed_knots": 0.0,
++          "absolute_course_deg": 96.84,
++          "signed_turn_deg": 6.84,
++          "target_heading_error_deg": 6.84,
++          "distance_after_m": 640.0,
++          "distance_after_2_steps_m": 640.0,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": null
++        },
++        "speed_00__heading_17": {
++          "speed_knots": 0.0,
++          "absolute_course_deg": 97.89,
++          "signed_turn_deg": 7.89,
++          "target_heading_error_deg": 7.89,
++          "distance_after_m": 640.0,
++          "distance_after_2_steps_m": 640.0,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": null
++        },
++        "speed_00__heading_18": {
++          "speed_knots": 0.0,
++          "absolute_course_deg": 98.95,
++          "signed_turn_deg": 8.95,
++          "target_heading_error_deg": 8.95,
++          "distance_after_m": 640.0,
++          "distance_after_2_steps_m": 640.0,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": null
++        },
++        "speed_00__heading_19": {
++          "speed_knots": 0.0,
++          "absolute_course_deg": 100.0,
++          "signed_turn_deg": 10.0,
++          "target_heading_error_deg": 10.0,
++          "distance_after_m": 640.0,
++          "distance_after_2_steps_m": 640.0,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": null
++        },
++        "speed_01__heading_00": {
++          "speed_knots": 4.0,
++          "absolute_course_deg": 80.0,
++          "signed_turn_deg": -10.0,
++          "target_heading_error_deg": 10.0,
++          "distance_after_m": 638.47,
++          "distance_after_2_steps_m": 636.44,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 11.79
++        },
++        "speed_01__heading_01": {
++          "speed_knots": 4.0,
++          "absolute_course_deg": 81.05,
++          "signed_turn_deg": -8.95,
++          "target_heading_error_deg": 8.95,
++          "distance_after_m": 638.47,
++          "distance_after_2_steps_m": 636.43,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 11.79
++        },
++        "speed_01__heading_02": {
++          "speed_knots": 4.0,
++          "absolute_course_deg": 82.11,
++          "signed_turn_deg": -7.89,
++          "target_heading_error_deg": 7.89,
++          "distance_after_m": 638.47,
++          "distance_after_2_steps_m": 636.43,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 11.79
++        },
++        "speed_01__heading_03": {
++          "speed_knots": 4.0,
++          "absolute_course_deg": 83.16,
++          "signed_turn_deg": -6.84,
++          "target_heading_error_deg": 6.84,
++          "distance_after_m": 638.46,
++          "distance_after_2_steps_m": 636.42,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 11.79
++        },
++        "speed_01__heading_04": {
++          "speed_knots": 4.0,
++          "absolute_course_deg": 84.21,
++          "signed_turn_deg": -5.79,
++          "target_heading_error_deg": 5.79,
++          "distance_after_m": 638.46,
++          "distance_after_2_steps_m": 636.42,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 11.79
++        },
++        "speed_01__heading_05": {
++          "speed_knots": 4.0,
++          "absolute_course_deg": 85.26,
++          "signed_turn_deg": -4.74,
++          "target_heading_error_deg": 4.74,
++          "distance_after_m": 638.46,
++          "distance_after_2_steps_m": 636.41,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 11.79
++        },
++        "speed_01__heading_06": {
++          "speed_knots": 4.0,
++          "absolute_course_deg": 86.32,
++          "signed_turn_deg": -3.68,
++          "target_heading_error_deg": 3.68,
++          "distance_after_m": 638.46,
++          "distance_after_2_steps_m": 636.41,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 11.79
++        },
++        "speed_01__heading_07": {
++          "speed_knots": 4.0,
++          "absolute_course_deg": 87.37,
++          "signed_turn_deg": -2.63,
++          "target_heading_error_deg": 2.63,
++          "distance_after_m": 638.46,
++          "distance_after_2_steps_m": 636.4,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 11.79
++        },
++        "speed_01__heading_08": {
++          "speed_knots": 4.0,
++          "absolute_course_deg": 88.42,
++          "signed_turn_deg": -1.58,
++          "target_heading_error_deg": 1.58,
++          "distance_after_m": 638.46,
++          "distance_after_2_steps_m": 636.4,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 11.79
++        },
++        "speed_01__heading_09": {
++          "speed_knots": 4.0,
++          "absolute_course_deg": 90.0,
++          "signed_turn_deg": 0.0,
++          "target_heading_error_deg": 0.0,
++          "distance_after_m": 638.46,
++          "distance_after_2_steps_m": 636.4,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 11.79
++        },
++        "speed_01__heading_10": {
++          "speed_knots": 4.0,
++          "absolute_course_deg": 90.53,
++          "signed_turn_deg": 0.53,
++          "target_heading_error_deg": 0.53,
++          "distance_after_m": 638.46,
++          "distance_after_2_steps_m": 636.4,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 11.79
++        },
++        "speed_01__heading_11": {
++          "speed_knots": 4.0,
++          "absolute_course_deg": 91.58,
++          "signed_turn_deg": 1.58,
++          "target_heading_error_deg": 1.58,
++          "distance_after_m": 638.46,
++          "distance_after_2_steps_m": 636.4,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 11.79
++        },
++        "speed_01__heading_12": {
++          "speed_knots": 4.0,
++          "absolute_course_deg": 92.63,
++          "signed_turn_deg": 2.63,
++          "target_heading_error_deg": 2.63,
++          "distance_after_m": 638.46,
++          "distance_after_2_steps_m": 636.4,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 11.79
++        },
++        "speed_01__heading_13": {
++          "speed_knots": 4.0,
++          "absolute_course_deg": 93.68,
++          "signed_turn_deg": 3.68,
++          "target_heading_error_deg": 3.68,
++          "distance_after_m": 638.46,
++          "distance_after_2_steps_m": 636.41,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 11.79
++        },
++        "speed_01__heading_14": {
++          "speed_knots": 4.0,
++          "absolute_course_deg": 94.74,
++          "signed_turn_deg": 4.74,
++          "target_heading_error_deg": 4.74,
++          "distance_after_m": 638.46,
++          "distance_after_2_steps_m": 636.41,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 11.79
++        },
++        "speed_01__heading_15": {
++          "speed_knots": 4.0,
++          "absolute_course_deg": 95.79,
++          "signed_turn_deg": 5.79,
++          "target_heading_error_deg": 5.79,
++          "distance_after_m": 638.46,
++          "distance_after_2_steps_m": 636.42,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 11.79
++        },
++        "speed_01__heading_16": {
++          "speed_knots": 4.0,
++          "absolute_course_deg": 96.84,
++          "signed_turn_deg": 6.84,
++          "target_heading_error_deg": 6.84,
++          "distance_after_m": 638.46,
++          "distance_after_2_steps_m": 636.42,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 11.79
++        },
++        "speed_01__heading_17": {
++          "speed_knots": 4.0,
++          "absolute_course_deg": 97.89,
++          "signed_turn_deg": 7.89,
++          "target_heading_error_deg": 7.89,
++          "distance_after_m": 638.47,
++          "distance_after_2_steps_m": 636.43,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 11.79
++        },
++        "speed_01__heading_18": {
++          "speed_knots": 4.0,
++          "absolute_course_deg": 98.95,
++          "signed_turn_deg": 8.95,
++          "target_heading_error_deg": 8.95,
++          "distance_after_m": 638.47,
++          "distance_after_2_steps_m": 636.43,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 11.79
++        },
++        "speed_01__heading_19": {
++          "speed_knots": 4.0,
++          "absolute_course_deg": 100.0,
++          "signed_turn_deg": 10.0,
++          "target_heading_error_deg": 10.0,
++          "distance_after_m": 638.47,
++          "distance_after_2_steps_m": 636.44,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 11.79
++        },
++        "speed_02__heading_00": {
++          "speed_knots": 8.0,
++          "absolute_course_deg": 80.0,
++          "signed_turn_deg": -10.0,
++          "target_heading_error_deg": 10.0,
++          "distance_after_m": 636.93,
++          "distance_after_2_steps_m": 632.88,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 23.58
++        },
++        "speed_02__heading_01": {
++          "speed_knots": 8.0,
++          "absolute_course_deg": 81.05,
++          "signed_turn_deg": -8.95,
++          "target_heading_error_deg": 8.95,
++          "distance_after_m": 636.93,
++          "distance_after_2_steps_m": 632.87,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 23.58
++        },
++        "speed_02__heading_02": {
++          "speed_knots": 8.0,
++          "absolute_course_deg": 82.11,
++          "signed_turn_deg": -7.89,
++          "target_heading_error_deg": 7.89,
++          "distance_after_m": 636.93,
++          "distance_after_2_steps_m": 632.86,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 23.58
++        },
++        "speed_02__heading_03": {
++          "speed_knots": 8.0,
++          "absolute_course_deg": 83.16,
++          "signed_turn_deg": -6.84,
++          "target_heading_error_deg": 6.84,
++          "distance_after_m": 636.93,
++          "distance_after_2_steps_m": 632.84,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 23.58
++        },
++        "speed_02__heading_04": {
++          "speed_knots": 8.0,
++          "absolute_course_deg": 84.21,
++          "signed_turn_deg": -5.79,
++          "target_heading_error_deg": 5.79,
++          "distance_after_m": 636.93,
++          "distance_after_2_steps_m": 632.83,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 23.58
++        },
++        "speed_02__heading_05": {
++          "speed_knots": 8.0,
++          "absolute_course_deg": 85.26,
++          "signed_turn_deg": -4.74,
++          "target_heading_error_deg": 4.74,
++          "distance_after_m": 636.92,
++          "distance_after_2_steps_m": 632.82,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 23.58
++        },
++        "speed_02__heading_06": {
++          "speed_knots": 8.0,
++          "absolute_course_deg": 86.32,
++          "signed_turn_deg": -3.68,
++          "target_heading_error_deg": 3.68,
++          "distance_after_m": 636.92,
++          "distance_after_2_steps_m": 632.81,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 23.58
++        },
++        "speed_02__heading_07": {
++          "speed_knots": 8.0,
++          "absolute_course_deg": 87.37,
++          "signed_turn_deg": -2.63,
++          "target_heading_error_deg": 2.63,
++          "distance_after_m": 636.92,
++          "distance_after_2_steps_m": 632.8,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 23.58
++        },
++        "speed_02__heading_08": {
++          "speed_knots": 8.0,
++          "absolute_course_deg": 88.42,
++          "signed_turn_deg": -1.58,
++          "target_heading_error_deg": 1.58,
++          "distance_after_m": 636.91,
++          "distance_after_2_steps_m": 632.8,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 23.58
++        },
++        "speed_02__heading_09": {
++          "speed_knots": 8.0,
++          "absolute_course_deg": 90.0,
++          "signed_turn_deg": 0.0,
++          "target_heading_error_deg": 0.0,
++          "distance_after_m": 636.91,
++          "distance_after_2_steps_m": 632.8,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 23.58
++        },
++        "speed_02__heading_10": {
++          "speed_knots": 8.0,
++          "absolute_course_deg": 90.53,
++          "signed_turn_deg": 0.53,
++          "target_heading_error_deg": 0.53,
++          "distance_after_m": 636.91,
++          "distance_after_2_steps_m": 632.8,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 23.58
++        },
++        "speed_02__heading_11": {
++          "speed_knots": 8.0,
++          "absolute_course_deg": 91.58,
++          "signed_turn_deg": 1.58,
++          "target_heading_error_deg": 1.58,
++          "distance_after_m": 636.91,
++          "distance_after_2_steps_m": 632.8,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 23.58
++        },
++        "speed_02__heading_12": {
++          "speed_knots": 8.0,
++          "absolute_course_deg": 92.63,
++          "signed_turn_deg": 2.63,
++          "target_heading_error_deg": 2.63,
++          "distance_after_m": 636.92,
++          "distance_after_2_steps_m": 632.8,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 23.58
++        },
++        "speed_02__heading_13": {
++          "speed_knots": 8.0,
++          "absolute_course_deg": 93.68,
++          "signed_turn_deg": 3.68,
++          "target_heading_error_deg": 3.68,
++          "distance_after_m": 636.92,
++          "distance_after_2_steps_m": 632.81,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 23.58
++        },
++        "speed_02__heading_14": {
++          "speed_knots": 8.0,
++          "absolute_course_deg": 94.74,
++          "signed_turn_deg": 4.74,
++          "target_heading_error_deg": 4.74,
++          "distance_after_m": 636.92,
++          "distance_after_2_steps_m": 632.82,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 23.58
++        },
++        "speed_02__heading_15": {
++          "speed_knots": 8.0,
++          "absolute_course_deg": 95.79,
++          "signed_turn_deg": 5.79,
++          "target_heading_error_deg": 5.79,
++          "distance_after_m": 636.93,
++          "distance_after_2_steps_m": 632.83,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 23.58
++        },
++        "speed_02__heading_16": {
++          "speed_knots": 8.0,
++          "absolute_course_deg": 96.84,
++          "signed_turn_deg": 6.84,
++          "target_heading_error_deg": 6.84,
++          "distance_after_m": 636.93,
++          "distance_after_2_steps_m": 632.84,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 23.58
++        },
++        "speed_02__heading_17": {
++          "speed_knots": 8.0,
++          "absolute_course_deg": 97.89,
++          "signed_turn_deg": 7.89,
++          "target_heading_error_deg": 7.89,
++          "distance_after_m": 636.93,
++          "distance_after_2_steps_m": 632.86,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 23.58
++        },
++        "speed_02__heading_18": {
++          "speed_knots": 8.0,
++          "absolute_course_deg": 98.95,
++          "signed_turn_deg": 8.95,
++          "target_heading_error_deg": 8.95,
++          "distance_after_m": 636.93,
++          "distance_after_2_steps_m": 632.87,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 23.58
++        },
++        "speed_02__heading_19": {
++          "speed_knots": 8.0,
++          "absolute_course_deg": 100.0,
++          "signed_turn_deg": 10.0,
++          "target_heading_error_deg": 10.0,
++          "distance_after_m": 636.93,
++          "distance_after_2_steps_m": 632.88,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 23.58
++        },
++        "speed_03__heading_00": {
++          "speed_knots": 12.0,
++          "absolute_course_deg": 80.0,
++          "signed_turn_deg": -10.0,
++          "target_heading_error_deg": 10.0,
++          "distance_after_m": 635.4,
++          "distance_after_2_steps_m": 629.32,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 35.37
++        },
++        "speed_03__heading_01": {
++          "speed_knots": 12.0,
++          "absolute_course_deg": 81.05,
++          "signed_turn_deg": -8.95,
++          "target_heading_error_deg": 8.95,
++          "distance_after_m": 635.4,
++          "distance_after_2_steps_m": 629.3,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 35.37
++        },
++        "speed_03__heading_02": {
++          "speed_knots": 12.0,
++          "absolute_course_deg": 82.11,
++          "signed_turn_deg": -7.89,
++          "target_heading_error_deg": 7.89,
++          "distance_after_m": 635.4,
++          "distance_after_2_steps_m": 629.28,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 35.37
++        },
++        "speed_03__heading_03": {
++          "speed_knots": 12.0,
++          "absolute_course_deg": 83.16,
++          "signed_turn_deg": -6.84,
++          "target_heading_error_deg": 6.84,
++          "distance_after_m": 635.39,
++          "distance_after_2_steps_m": 629.26,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 35.37
++        },
++        "speed_03__heading_04": {
++          "speed_knots": 12.0,
++          "absolute_course_deg": 84.21,
++          "signed_turn_deg": -5.79,
++          "target_heading_error_deg": 5.79,
++          "distance_after_m": 635.39,
++          "distance_after_2_steps_m": 629.25,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 35.37
++        },
++        "speed_03__heading_05": {
++          "speed_knots": 12.0,
++          "absolute_course_deg": 85.26,
++          "signed_turn_deg": -4.74,
++          "target_heading_error_deg": 4.74,
++          "distance_after_m": 635.38,
++          "distance_after_2_steps_m": 629.23,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 35.37
++        },
++        "speed_03__heading_06": {
++          "speed_knots": 12.0,
++          "absolute_course_deg": 86.32,
++          "signed_turn_deg": -3.68,
++          "target_heading_error_deg": 3.68,
++          "distance_after_m": 635.38,
++          "distance_after_2_steps_m": 629.22,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 35.37
++        },
++        "speed_03__heading_07": {
++          "speed_knots": 12.0,
++          "absolute_course_deg": 87.37,
++          "signed_turn_deg": -2.63,
++          "target_heading_error_deg": 2.63,
++          "distance_after_m": 635.37,
++          "distance_after_2_steps_m": 629.21,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 35.37
++        },
++        "speed_03__heading_08": {
++          "speed_knots": 12.0,
++          "absolute_course_deg": 88.42,
++          "signed_turn_deg": -1.58,
++          "target_heading_error_deg": 1.58,
++          "distance_after_m": 635.37,
++          "distance_after_2_steps_m": 629.2,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 35.37
++        },
++        "speed_03__heading_09": {
++          "speed_knots": 12.0,
++          "absolute_course_deg": 90.0,
++          "signed_turn_deg": 0.0,
++          "target_heading_error_deg": 0.0,
++          "distance_after_m": 635.37,
++          "distance_after_2_steps_m": 629.2,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 35.37
++        },
++        "speed_03__heading_10": {
++          "speed_knots": 12.0,
++          "absolute_course_deg": 90.53,
++          "signed_turn_deg": 0.53,
++          "target_heading_error_deg": 0.53,
++          "distance_after_m": 635.37,
++          "distance_after_2_steps_m": 629.2,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 35.37
++        },
++        "speed_03__heading_11": {
++          "speed_knots": 12.0,
++          "absolute_course_deg": 91.58,
++          "signed_turn_deg": 1.58,
++          "target_heading_error_deg": 1.58,
++          "distance_after_m": 635.37,
++          "distance_after_2_steps_m": 629.2,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 35.37
++        },
++        "speed_03__heading_12": {
++          "speed_knots": 12.0,
++          "absolute_course_deg": 92.63,
++          "signed_turn_deg": 2.63,
++          "target_heading_error_deg": 2.63,
++          "distance_after_m": 635.37,
++          "distance_after_2_steps_m": 629.21,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 35.37
++        },
++        "speed_03__heading_13": {
++          "speed_knots": 12.0,
++          "absolute_course_deg": 93.68,
++          "signed_turn_deg": 3.68,
++          "target_heading_error_deg": 3.68,
++          "distance_after_m": 635.38,
++          "distance_after_2_steps_m": 629.22,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 35.37
++        },
++        "speed_03__heading_14": {
++          "speed_knots": 12.0,
++          "absolute_course_deg": 94.74,
++          "signed_turn_deg": 4.74,
++          "target_heading_error_deg": 4.74,
++          "distance_after_m": 635.38,
++          "distance_after_2_steps_m": 629.23,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 35.37
++        },
++        "speed_03__heading_15": {
++          "speed_knots": 12.0,
++          "absolute_course_deg": 95.79,
++          "signed_turn_deg": 5.79,
++          "target_heading_error_deg": 5.79,
++          "distance_after_m": 635.39,
++          "distance_after_2_steps_m": 629.25,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 35.37
++        },
++        "speed_03__heading_16": {
++          "speed_knots": 12.0,
++          "absolute_course_deg": 96.84,
++          "signed_turn_deg": 6.84,
++          "target_heading_error_deg": 6.84,
++          "distance_after_m": 635.39,
++          "distance_after_2_steps_m": 629.26,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 35.37
++        },
++        "speed_03__heading_17": {
++          "speed_knots": 12.0,
++          "absolute_course_deg": 97.89,
++          "signed_turn_deg": 7.89,
++          "target_heading_error_deg": 7.89,
++          "distance_after_m": 635.4,
++          "distance_after_2_steps_m": 629.28,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 35.37
++        },
++        "speed_03__heading_18": {
++          "speed_knots": 12.0,
++          "absolute_course_deg": 98.95,
++          "signed_turn_deg": 8.95,
++          "target_heading_error_deg": 8.95,
++          "distance_after_m": 635.4,
++          "distance_after_2_steps_m": 629.3,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 35.37
++        },
++        "speed_03__heading_19": {
++          "speed_knots": 12.0,
++          "absolute_course_deg": 100.0,
++          "signed_turn_deg": 10.0,
++          "target_heading_error_deg": 10.0,
++          "distance_after_m": 635.4,
++          "distance_after_2_steps_m": 629.32,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 35.37
++        },
++        "speed_04__heading_00": {
++          "speed_knots": 16.0,
++          "absolute_course_deg": 80.0,
++          "signed_turn_deg": -10.0,
++          "target_heading_error_deg": 10.0,
++          "distance_after_m": 633.87,
++          "distance_after_2_steps_m": 625.76,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 47.16
++        },
++        "speed_04__heading_01": {
++          "speed_knots": 16.0,
++          "absolute_course_deg": 81.05,
++          "signed_turn_deg": -8.95,
++          "target_heading_error_deg": 8.95,
++          "distance_after_m": 633.87,
++          "distance_after_2_steps_m": 625.74,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 47.16
++        },
++        "speed_04__heading_02": {
++          "speed_knots": 16.0,
++          "absolute_course_deg": 82.11,
++          "signed_turn_deg": -7.89,
++          "target_heading_error_deg": 7.89,
++          "distance_after_m": 633.86,
++          "distance_after_2_steps_m": 625.71,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 47.16
++        },
++        "speed_04__heading_03": {
++          "speed_knots": 16.0,
++          "absolute_course_deg": 83.16,
++          "signed_turn_deg": -6.84,
++          "target_heading_error_deg": 6.84,
++          "distance_after_m": 633.86,
++          "distance_after_2_steps_m": 625.69,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 47.16
++        },
++        "speed_04__heading_04": {
++          "speed_knots": 16.0,
++          "absolute_course_deg": 84.21,
++          "signed_turn_deg": -5.79,
++          "target_heading_error_deg": 5.79,
++          "distance_after_m": 633.85,
++          "distance_after_2_steps_m": 625.66,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 47.16
++        },
++        "speed_04__heading_05": {
++          "speed_knots": 16.0,
++          "absolute_course_deg": 85.26,
++          "signed_turn_deg": -4.74,
++          "target_heading_error_deg": 4.74,
++          "distance_after_m": 633.84,
++          "distance_after_2_steps_m": 625.64,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 47.16
++        },
++        "speed_04__heading_06": {
++          "speed_knots": 16.0,
++          "absolute_course_deg": 86.32,
++          "signed_turn_deg": -3.68,
++          "target_heading_error_deg": 3.68,
++          "distance_after_m": 633.84,
++          "distance_after_2_steps_m": 625.62,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 47.16
++        },
++        "speed_04__heading_07": {
++          "speed_knots": 16.0,
++          "absolute_course_deg": 87.37,
++          "signed_turn_deg": -2.63,
++          "target_heading_error_deg": 2.63,
++          "distance_after_m": 633.83,
++          "distance_after_2_steps_m": 625.61,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 47.16
++        },
++        "speed_04__heading_08": {
++          "speed_knots": 16.0,
++          "absolute_course_deg": 88.42,
++          "signed_turn_deg": -1.58,
++          "target_heading_error_deg": 1.58,
++          "distance_after_m": 633.83,
++          "distance_after_2_steps_m": 625.6,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 47.16
++        },
++        "speed_04__heading_09": {
++          "speed_knots": 16.0,
++          "absolute_course_deg": 90.0,
++          "signed_turn_deg": 0.0,
++          "target_heading_error_deg": 0.0,
++          "distance_after_m": 633.83,
++          "distance_after_2_steps_m": 625.6,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 47.16
++        },
++        "speed_04__heading_10": {
++          "speed_knots": 16.0,
++          "absolute_course_deg": 90.53,
++          "signed_turn_deg": 0.53,
++          "target_heading_error_deg": 0.53,
++          "distance_after_m": 633.83,
++          "distance_after_2_steps_m": 625.6,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 47.16
++        },
++        "speed_04__heading_11": {
++          "speed_knots": 16.0,
++          "absolute_course_deg": 91.58,
++          "signed_turn_deg": 1.58,
++          "target_heading_error_deg": 1.58,
++          "distance_after_m": 633.83,
++          "distance_after_2_steps_m": 625.6,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 47.16
++        },
++        "speed_04__heading_12": {
++          "speed_knots": 16.0,
++          "absolute_course_deg": 92.63,
++          "signed_turn_deg": 2.63,
++          "target_heading_error_deg": 2.63,
++          "distance_after_m": 633.83,
++          "distance_after_2_steps_m": 625.61,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 47.16
++        },
++        "speed_04__heading_13": {
++          "speed_knots": 16.0,
++          "absolute_course_deg": 93.68,
++          "signed_turn_deg": 3.68,
++          "target_heading_error_deg": 3.68,
++          "distance_after_m": 633.84,
++          "distance_after_2_steps_m": 625.62,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 47.16
++        },
++        "speed_04__heading_14": {
++          "speed_knots": 16.0,
++          "absolute_course_deg": 94.74,
++          "signed_turn_deg": 4.74,
++          "target_heading_error_deg": 4.74,
++          "distance_after_m": 633.84,
++          "distance_after_2_steps_m": 625.64,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 47.16
++        },
++        "speed_04__heading_15": {
++          "speed_knots": 16.0,
++          "absolute_course_deg": 95.79,
++          "signed_turn_deg": 5.79,
++          "target_heading_error_deg": 5.79,
++          "distance_after_m": 633.85,
++          "distance_after_2_steps_m": 625.66,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 47.16
++        },
++        "speed_04__heading_16": {
++          "speed_knots": 16.0,
++          "absolute_course_deg": 96.84,
++          "signed_turn_deg": 6.84,
++          "target_heading_error_deg": 6.84,
++          "distance_after_m": 633.86,
++          "distance_after_2_steps_m": 625.69,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 47.16
++        },
++        "speed_04__heading_17": {
++          "speed_knots": 16.0,
++          "absolute_course_deg": 97.89,
++          "signed_turn_deg": 7.89,
++          "target_heading_error_deg": 7.89,
++          "distance_after_m": 633.86,
++          "distance_after_2_steps_m": 625.71,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 47.16
++        },
++        "speed_04__heading_18": {
++          "speed_knots": 16.0,
++          "absolute_course_deg": 98.95,
++          "signed_turn_deg": 8.95,
++          "target_heading_error_deg": 8.95,
++          "distance_after_m": 633.87,
++          "distance_after_2_steps_m": 625.74,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 47.16
++        },
++        "speed_04__heading_19": {
++          "speed_knots": 16.0,
++          "absolute_course_deg": 100.0,
++          "signed_turn_deg": 10.0,
++          "target_heading_error_deg": 10.0,
++          "distance_after_m": 633.87,
++          "distance_after_2_steps_m": 625.76,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 47.16
++        },
++        "speed_05__heading_00": {
++          "speed_knots": 20.0,
++          "absolute_course_deg": 80.0,
++          "signed_turn_deg": -10.0,
++          "target_heading_error_deg": 10.0,
++          "distance_after_m": 632.33,
++          "distance_after_2_steps_m": 622.21,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 58.95
++        },
++        "speed_05__heading_01": {
++          "speed_knots": 20.0,
++          "absolute_course_deg": 81.05,
++          "signed_turn_deg": -8.95,
++          "target_heading_error_deg": 8.95,
++          "distance_after_m": 632.33,
++          "distance_after_2_steps_m": 622.17,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 58.95
++        },
++        "speed_05__heading_02": {
++          "speed_knots": 20.0,
++          "absolute_course_deg": 82.11,
++          "signed_turn_deg": -7.89,
++          "target_heading_error_deg": 7.89,
++          "distance_after_m": 632.33,
++          "distance_after_2_steps_m": 622.14,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 58.95
++        },
++        "speed_05__heading_03": {
++          "speed_knots": 20.0,
++          "absolute_course_deg": 83.16,
++          "signed_turn_deg": -6.84,
++          "target_heading_error_deg": 6.84,
++          "distance_after_m": 632.32,
++          "distance_after_2_steps_m": 622.11,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 58.95
++        },
++        "speed_05__heading_04": {
++          "speed_knots": 20.0,
++          "absolute_course_deg": 84.21,
++          "signed_turn_deg": -5.79,
++          "target_heading_error_deg": 5.79,
++          "distance_after_m": 632.31,
++          "distance_after_2_steps_m": 622.08,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 58.95
++        },
++        "speed_05__heading_05": {
++          "speed_knots": 20.0,
++          "absolute_course_deg": 85.26,
++          "signed_turn_deg": -4.74,
++          "target_heading_error_deg": 4.74,
++          "distance_after_m": 632.31,
++          "distance_after_2_steps_m": 622.05,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 58.95
++        },
++        "speed_05__heading_06": {
++          "speed_knots": 20.0,
++          "absolute_course_deg": 86.32,
++          "signed_turn_deg": -3.68,
++          "target_heading_error_deg": 3.68,
++          "distance_after_m": 632.3,
++          "distance_after_2_steps_m": 622.03,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 58.95
++        },
++        "speed_05__heading_07": {
++          "speed_knots": 20.0,
++          "absolute_course_deg": 87.37,
++          "signed_turn_deg": -2.63,
++          "target_heading_error_deg": 2.63,
++          "distance_after_m": 632.29,
++          "distance_after_2_steps_m": 622.01,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 58.95
++        },
++        "speed_05__heading_08": {
++          "speed_knots": 20.0,
++          "absolute_course_deg": 88.42,
++          "signed_turn_deg": -1.58,
++          "target_heading_error_deg": 1.58,
++          "distance_after_m": 632.29,
++          "distance_after_2_steps_m": 622.0,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 58.95
++        },
++        "speed_05__heading_09": {
++          "speed_knots": 20.0,
++          "absolute_course_deg": 90.0,
++          "signed_turn_deg": 0.0,
++          "target_heading_error_deg": 0.0,
++          "distance_after_m": 632.28,
++          "distance_after_2_steps_m": 621.99,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 58.95
++        },
++        "speed_05__heading_10": {
++          "speed_knots": 20.0,
++          "absolute_course_deg": 90.53,
++          "signed_turn_deg": 0.53,
++          "target_heading_error_deg": 0.53,
++          "distance_after_m": 632.28,
++          "distance_after_2_steps_m": 622.0,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 58.95
++        },
++        "speed_05__heading_11": {
++          "speed_knots": 20.0,
++          "absolute_course_deg": 91.58,
++          "signed_turn_deg": 1.58,
++          "target_heading_error_deg": 1.58,
++          "distance_after_m": 632.29,
++          "distance_after_2_steps_m": 622.0,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 58.95
++        },
++        "speed_05__heading_12": {
++          "speed_knots": 20.0,
++          "absolute_course_deg": 92.63,
++          "signed_turn_deg": 2.63,
++          "target_heading_error_deg": 2.63,
++          "distance_after_m": 632.29,
++          "distance_after_2_steps_m": 622.01,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 58.95
++        },
++        "speed_05__heading_13": {
++          "speed_knots": 20.0,
++          "absolute_course_deg": 93.68,
++          "signed_turn_deg": 3.68,
++          "target_heading_error_deg": 3.68,
++          "distance_after_m": 632.3,
++          "distance_after_2_steps_m": 622.03,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 58.95
++        },
++        "speed_05__heading_14": {
++          "speed_knots": 20.0,
++          "absolute_course_deg": 94.74,
++          "signed_turn_deg": 4.74,
++          "target_heading_error_deg": 4.74,
++          "distance_after_m": 632.31,
++          "distance_after_2_steps_m": 622.05,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 58.95
++        },
++        "speed_05__heading_15": {
++          "speed_knots": 20.0,
++          "absolute_course_deg": 95.79,
++          "signed_turn_deg": 5.79,
++          "target_heading_error_deg": 5.79,
++          "distance_after_m": 632.31,
++          "distance_after_2_steps_m": 622.08,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 58.95
++        },
++        "speed_05__heading_16": {
++          "speed_knots": 20.0,
++          "absolute_course_deg": 96.84,
++          "signed_turn_deg": 6.84,
++          "target_heading_error_deg": 6.84,
++          "distance_after_m": 632.32,
++          "distance_after_2_steps_m": 622.11,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 58.95
++        },
++        "speed_05__heading_17": {
++          "speed_knots": 20.0,
++          "absolute_course_deg": 97.89,
++          "signed_turn_deg": 7.89,
++          "target_heading_error_deg": 7.89,
++          "distance_after_m": 632.33,
++          "distance_after_2_steps_m": 622.14,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 58.95
++        },
++        "speed_05__heading_18": {
++          "speed_knots": 20.0,
++          "absolute_course_deg": 98.95,
++          "signed_turn_deg": 8.95,
++          "target_heading_error_deg": 8.95,
++          "distance_after_m": 632.33,
++          "distance_after_2_steps_m": 622.17,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 58.95
++        },
++        "speed_05__heading_19": {
++          "speed_knots": 20.0,
++          "absolute_course_deg": 100.0,
++          "signed_turn_deg": 10.0,
++          "target_heading_error_deg": 10.0,
++          "distance_after_m": 632.33,
++          "distance_after_2_steps_m": 622.21,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 58.95
++        },
++        "speed_06__heading_00": {
++          "speed_knots": 26.0,
++          "absolute_course_deg": 80.0,
++          "signed_turn_deg": -10.0,
++          "target_heading_error_deg": 10.0,
++          "distance_after_m": 630.03,
++          "distance_after_2_steps_m": 616.87,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 76.64
++        },
++        "speed_06__heading_01": {
++          "speed_knots": 26.0,
++          "absolute_course_deg": 81.05,
++          "signed_turn_deg": -8.95,
++          "target_heading_error_deg": 8.95,
++          "distance_after_m": 630.03,
++          "distance_after_2_steps_m": 616.83,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 76.64
++        },
++        "speed_06__heading_02": {
++          "speed_knots": 26.0,
++          "absolute_course_deg": 82.11,
++          "signed_turn_deg": -7.89,
++          "target_heading_error_deg": 7.89,
++          "distance_after_m": 630.03,
++          "distance_after_2_steps_m": 616.78,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 76.64
++        },
++        "speed_06__heading_03": {
++          "speed_knots": 26.0,
++          "absolute_course_deg": 83.16,
++          "signed_turn_deg": -6.84,
++          "target_heading_error_deg": 6.84,
++          "distance_after_m": 630.02,
++          "distance_after_2_steps_m": 616.74,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 76.64
++        },
++        "speed_06__heading_04": {
++          "speed_knots": 26.0,
++          "absolute_course_deg": 84.21,
++          "signed_turn_deg": -5.79,
++          "target_heading_error_deg": 5.79,
++          "distance_after_m": 630.01,
++          "distance_after_2_steps_m": 616.71,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 76.64
++        },
++        "speed_06__heading_05": {
++          "speed_knots": 26.0,
++          "absolute_course_deg": 85.26,
++          "signed_turn_deg": -4.74,
++          "target_heading_error_deg": 4.74,
++          "distance_after_m": 630.0,
++          "distance_after_2_steps_m": 616.67,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 76.64
++        },
++        "speed_06__heading_06": {
++          "speed_knots": 26.0,
++          "absolute_course_deg": 86.32,
++          "signed_turn_deg": -3.68,
++          "target_heading_error_deg": 3.68,
++          "distance_after_m": 629.99,
++          "distance_after_2_steps_m": 616.64,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 76.64
++        },
++        "speed_06__heading_07": {
++          "speed_knots": 26.0,
++          "absolute_course_deg": 87.37,
++          "signed_turn_deg": -2.63,
++          "target_heading_error_deg": 2.63,
++          "distance_after_m": 629.98,
++          "distance_after_2_steps_m": 616.62,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 76.64
++        },
++        "speed_06__heading_08": {
++          "speed_knots": 26.0,
++          "absolute_course_deg": 88.42,
++          "signed_turn_deg": -1.58,
++          "target_heading_error_deg": 1.58,
++          "distance_after_m": 629.97,
++          "distance_after_2_steps_m": 616.6,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 76.64
++        },
++        "speed_06__heading_09": {
++          "speed_knots": 26.0,
++          "absolute_course_deg": 90.0,
++          "signed_turn_deg": 0.0,
++          "target_heading_error_deg": 0.0,
++          "distance_after_m": 629.97,
++          "distance_after_2_steps_m": 616.59,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 76.64
++        },
++        "speed_06__heading_10": {
++          "speed_knots": 26.0,
++          "absolute_course_deg": 90.53,
++          "signed_turn_deg": 0.53,
++          "target_heading_error_deg": 0.53,
++          "distance_after_m": 629.97,
++          "distance_after_2_steps_m": 616.59,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 76.64
++        },
++        "speed_06__heading_11": {
++          "speed_knots": 26.0,
++          "absolute_course_deg": 91.58,
++          "signed_turn_deg": 1.58,
++          "target_heading_error_deg": 1.58,
++          "distance_after_m": 629.97,
++          "distance_after_2_steps_m": 616.6,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 76.64
++        },
++        "speed_06__heading_12": {
++          "speed_knots": 26.0,
++          "absolute_course_deg": 92.63,
++          "signed_turn_deg": 2.63,
++          "target_heading_error_deg": 2.63,
++          "distance_after_m": 629.98,
++          "distance_after_2_steps_m": 616.62,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 76.64
++        },
++        "speed_06__heading_13": {
++          "speed_knots": 26.0,
++          "absolute_course_deg": 93.68,
++          "signed_turn_deg": 3.68,
++          "target_heading_error_deg": 3.68,
++          "distance_after_m": 629.99,
++          "distance_after_2_steps_m": 616.64,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 76.64
++        },
++        "speed_06__heading_14": {
++          "speed_knots": 26.0,
++          "absolute_course_deg": 94.74,
++          "signed_turn_deg": 4.74,
++          "target_heading_error_deg": 4.74,
++          "distance_after_m": 630.0,
++          "distance_after_2_steps_m": 616.67,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 76.64
++        },
++        "speed_06__heading_15": {
++          "speed_knots": 26.0,
++          "absolute_course_deg": 95.79,
++          "signed_turn_deg": 5.79,
++          "target_heading_error_deg": 5.79,
++          "distance_after_m": 630.01,
++          "distance_after_2_steps_m": 616.71,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 76.64
++        },
++        "speed_06__heading_16": {
++          "speed_knots": 26.0,
++          "absolute_course_deg": 96.84,
++          "signed_turn_deg": 6.84,
++          "target_heading_error_deg": 6.84,
++          "distance_after_m": 630.02,
++          "distance_after_2_steps_m": 616.74,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 76.64
++        },
++        "speed_06__heading_17": {
++          "speed_knots": 26.0,
++          "absolute_course_deg": 97.89,
++          "signed_turn_deg": 7.89,
++          "target_heading_error_deg": 7.89,
++          "distance_after_m": 630.03,
++          "distance_after_2_steps_m": 616.78,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 76.64
++        },
++        "speed_06__heading_18": {
++          "speed_knots": 26.0,
++          "absolute_course_deg": 98.95,
++          "signed_turn_deg": 8.95,
++          "target_heading_error_deg": 8.95,
++          "distance_after_m": 630.03,
++          "distance_after_2_steps_m": 616.83,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 76.64
++        },
++        "speed_06__heading_19": {
++          "speed_knots": 26.0,
++          "absolute_course_deg": 100.0,
++          "signed_turn_deg": 10.0,
++          "target_heading_error_deg": 10.0,
++          "distance_after_m": 630.03,
++          "distance_after_2_steps_m": 616.87,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 76.64
++        },
++        "speed_07__heading_00": {
++          "speed_knots": 32.0,
++          "absolute_course_deg": 80.0,
++          "signed_turn_deg": -10.0,
++          "target_heading_error_deg": 10.0,
++          "distance_after_m": 627.74,
++          "distance_after_2_steps_m": 611.54,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 94.32
++        },
++        "speed_07__heading_01": {
++          "speed_knots": 32.0,
++          "absolute_course_deg": 81.05,
++          "signed_turn_deg": -8.95,
++          "target_heading_error_deg": 8.95,
++          "distance_after_m": 627.73,
++          "distance_after_2_steps_m": 611.48,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 94.32
++        },
++        "speed_07__heading_02": {
++          "speed_knots": 32.0,
++          "absolute_course_deg": 82.11,
++          "signed_turn_deg": -7.89,
++          "target_heading_error_deg": 7.89,
++          "distance_after_m": 627.73,
++          "distance_after_2_steps_m": 611.43,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 94.32
++        },
++        "speed_07__heading_03": {
++          "speed_knots": 32.0,
++          "absolute_course_deg": 83.16,
++          "signed_turn_deg": -6.84,
++          "target_heading_error_deg": 6.84,
++          "distance_after_m": 627.72,
++          "distance_after_2_steps_m": 611.38,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 94.32
++        },
++        "speed_07__heading_04": {
++          "speed_knots": 32.0,
++          "absolute_course_deg": 84.21,
++          "signed_turn_deg": -5.79,
++          "target_heading_error_deg": 5.79,
++          "distance_after_m": 627.7,
++          "distance_after_2_steps_m": 611.33,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 94.32
++        },
++        "speed_07__heading_05": {
++          "speed_knots": 32.0,
++          "absolute_course_deg": 85.26,
++          "signed_turn_deg": -4.74,
++          "target_heading_error_deg": 4.74,
++          "distance_after_m": 627.69,
++          "distance_after_2_steps_m": 611.29,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 94.32
++        },
++        "speed_07__heading_06": {
++          "speed_knots": 32.0,
++          "absolute_course_deg": 86.32,
++          "signed_turn_deg": -3.68,
++          "target_heading_error_deg": 3.68,
++          "distance_after_m": 627.68,
++          "distance_after_2_steps_m": 611.25,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 94.32
++        },
++        "speed_07__heading_07": {
++          "speed_knots": 32.0,
++          "absolute_course_deg": 87.37,
++          "signed_turn_deg": -2.63,
++          "target_heading_error_deg": 2.63,
++          "distance_after_m": 627.67,
++          "distance_after_2_steps_m": 611.22,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 94.32
++        },
++        "speed_07__heading_08": {
++          "speed_knots": 32.0,
++          "absolute_course_deg": 88.42,
++          "signed_turn_deg": -1.58,
++          "target_heading_error_deg": 1.58,
++          "distance_after_m": 627.66,
++          "distance_after_2_steps_m": 611.2,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 94.32
++        },
++        "speed_07__heading_09": {
++          "speed_knots": 32.0,
++          "absolute_course_deg": 90.0,
++          "signed_turn_deg": 0.0,
++          "target_heading_error_deg": 0.0,
++          "distance_after_m": 627.65,
++          "distance_after_2_steps_m": 611.19,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 94.32
++        },
++        "speed_07__heading_10": {
++          "speed_knots": 32.0,
++          "absolute_course_deg": 90.53,
++          "signed_turn_deg": 0.53,
++          "target_heading_error_deg": 0.53,
++          "distance_after_m": 627.65,
++          "distance_after_2_steps_m": 611.19,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 94.32
++        },
++        "speed_07__heading_11": {
++          "speed_knots": 32.0,
++          "absolute_course_deg": 91.58,
++          "signed_turn_deg": 1.58,
++          "target_heading_error_deg": 1.58,
++          "distance_after_m": 627.66,
++          "distance_after_2_steps_m": 611.2,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 94.32
++        },
++        "speed_07__heading_12": {
++          "speed_knots": 32.0,
++          "absolute_course_deg": 92.63,
++          "signed_turn_deg": 2.63,
++          "target_heading_error_deg": 2.63,
++          "distance_after_m": 627.67,
++          "distance_after_2_steps_m": 611.22,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 94.32
++        },
++        "speed_07__heading_13": {
++          "speed_knots": 32.0,
++          "absolute_course_deg": 93.68,
++          "signed_turn_deg": 3.68,
++          "target_heading_error_deg": 3.68,
++          "distance_after_m": 627.68,
++          "distance_after_2_steps_m": 611.25,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 94.32
++        },
++        "speed_07__heading_14": {
++          "speed_knots": 32.0,
++          "absolute_course_deg": 94.74,
++          "signed_turn_deg": 4.74,
++          "target_heading_error_deg": 4.74,
++          "distance_after_m": 627.69,
++          "distance_after_2_steps_m": 611.29,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 94.32
++        },
++        "speed_07__heading_15": {
++          "speed_knots": 32.0,
++          "absolute_course_deg": 95.79,
++          "signed_turn_deg": 5.79,
++          "target_heading_error_deg": 5.79,
++          "distance_after_m": 627.7,
++          "distance_after_2_steps_m": 611.33,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 94.32
++        },
++        "speed_07__heading_16": {
++          "speed_knots": 32.0,
++          "absolute_course_deg": 96.84,
++          "signed_turn_deg": 6.84,
++          "target_heading_error_deg": 6.84,
++          "distance_after_m": 627.72,
++          "distance_after_2_steps_m": 611.38,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 94.32
++        },
++        "speed_07__heading_17": {
++          "speed_knots": 32.0,
++          "absolute_course_deg": 97.89,
++          "signed_turn_deg": 7.89,
++          "target_heading_error_deg": 7.89,
++          "distance_after_m": 627.73,
++          "distance_after_2_steps_m": 611.43,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 94.32
++        },
++        "speed_07__heading_18": {
++          "speed_knots": 32.0,
++          "absolute_course_deg": 98.95,
++          "signed_turn_deg": 8.95,
++          "target_heading_error_deg": 8.95,
++          "distance_after_m": 627.73,
++          "distance_after_2_steps_m": 611.48,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 94.32
++        },
++        "speed_07__heading_19": {
++          "speed_knots": 32.0,
++          "absolute_course_deg": 100.0,
++          "signed_turn_deg": 10.0,
++          "target_heading_error_deg": 10.0,
++          "distance_after_m": 627.74,
++          "distance_after_2_steps_m": 611.54,
++          "speed_limit_violation": false,
++          "approach_speed_warning": false,
++          "estimated_turn_radius_m": 94.32
+         }
+       }
+     }

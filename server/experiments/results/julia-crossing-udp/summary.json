@@ -1,0 +1,69 @@
+{
+  "dt": 0.2,
+  "max_speed_knots": 3.0,
+  "backend": "julia",
+  "device": "cuda",
+  "transport": "udp",
+  "model_path": "/home/epic/jev_api(1)/models/Julia-1",
+  "elapsed_s": 8.390754700998514,
+  "results": [
+    {
+      "inference_seconds": [
+        0.20707,
+        0.011713,
+        0.012474,
+        0.012624,
+        0.01249,
+        0.014187,
+        0.01462,
+        0.014173,
+        0.01461,
+        0.01425,
+        0.014023,
+        0.013944,
+        0.014,
+        0.01381,
+        0.013693,
+        0.013829
+      ],
+      "received_controls": 21,
+      "transport": "localhost UDP",
+      "task_address": [
+        "127.0.0.1",
+        49888
+      ],
+      "action_address": [
+        "127.0.0.1",
+        34184
+      ],
+      "status_address": [
+        "127.0.0.1",
+        43052
+      ],
+      "final_status": {
+        "simId": "local-civilian",
+        "id": "crossing_reference",
+        "code": "trackingMode",
+        "status": 2,
+        "description": "stopped",
+        "params": {
+          "nextWaypointIndex": 1,
+          "nextWaypoint": {
+            "routeLon": 120.50006652071546,
+            "routeLat": 30.2,
+            "routeSpeed": 1.2,
+            "routeRadius": 1
+          },
+          "remainingWaypointNum": 10,
+          "remainingDistanceM": 119.7,
+          "estimatedRemainingTimeS": 308.83,
+          "completionRate": 0.0
+        }
+      },
+      "received_statuses": 6,
+      "received_motion": true,
+      "stopped": true
+    }
+  ],
+  "limitations": "Idealized motion; direct mode pauses world during inference; sampled speed checks are not continuous verification. UDP mode runs in real time. Cycle-limit status is not physical route completion."
+}

@@ -1,0 +1,12 @@
+{
+  "backend": "kev",
+  "scenario": "crossing_km",
+  "requested_steps": 2000,
+  "interval_s": 1.0,
+  "max_turn_rate_deg_s": 45.0,
+  "candidate_turn_limit_deg": 45.0,
+  "speed_knots": 15.0,
+  "candidate_count": 16,
+  "initial_course_deg": 90.0,
+  "note": "Simulation assumptions; not calibrated vessel parameters. Existing official network settings unchanged."
+}

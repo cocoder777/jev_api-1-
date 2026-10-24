@@ -1,0 +1,53 @@
+{
+  "crossing_reference": {
+    "description": "Approximation of the supplied figure: nine waypoints and a final point, repeated crossings and reversals. Coordinates are estimated from the image, not original data.",
+    "points_m": [
+      [
+        0,
+        0
+      ],
+      [
+        6.4,
+        0
+      ],
+      [
+        -3.2,
+        6.4
+      ],
+      [
+        8,
+        8
+      ],
+      [
+        -4.8,
+        -1.6
+      ],
+      [
+        3.2,
+        9.6
+      ],
+      [
+        9.6,
+        -3.2
+      ],
+      [
+        -4,
+        2.4
+      ],
+      [
+        4.8,
+        4
+      ],
+      [
+        0,
+        -4.8
+      ],
+      [
+        7.2,
+        5.6
+      ]
+    ],
+    "radius_m": 1,
+    "speed_knots": 1.2
+  }
+}

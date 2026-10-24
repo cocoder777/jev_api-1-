@@ -1,0 +1,53 @@
+{
+  "crossing_km": {
+    "description": "Kilometer-scale crossing route: 1440 m east-west and north-south span, preserving reference waypoint order. For fixed 10/20-knot Julia trials.",
+    "points_m": [
+      [
+        0,
+        0
+      ],
+      [
+        640.0,
+        0
+      ],
+      [
+        -320.0,
+        640.0
+      ],
+      [
+        800,
+        800
+      ],
+      [
+        -480.0,
+        -160.0
+      ],
+      [
+        320.0,
+        960.0
+      ],
+      [
+        960.0,
+        -320.0
+      ],
+      [
+        -400,
+        240.0
+      ],
+      [
+        480.0,
+        400
+      ],
+      [
+        0,
+        -480.0
+      ],
+      [
+        720.0,
+        560.0
+      ]
+    ],
+    "radius_m": 50,
+    "speed_knots": 20
+  }
+}

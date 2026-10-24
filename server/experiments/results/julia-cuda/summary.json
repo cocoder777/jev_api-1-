@@ -1,0 +1,46 @@
+{
+  "backend": "julia",
+  "device": "cuda",
+  "transport": "direct",
+  "model_path": "/home/epic/jev_api(1)/models/Julia-1",
+  "elapsed_s": 17.624561902000096,
+  "results": [
+    {
+      "scenario": "straight",
+      "completed": false,
+      "steps": 100,
+      "simulated_seconds": 99.0,
+      "final_distance_m": 81.18867580444038,
+      "final_speed_knots": 0.6,
+      "speed_violation_sample_count": 0,
+      "mean_latency_s": 0.045271561940016906,
+      "p95_latency_s": 0.044389188999957696,
+      "max_latency_s": 0.22229465000054915
+    },
+    {
+      "scenario": "turn",
+      "completed": false,
+      "steps": 100,
+      "simulated_seconds": 99.0,
+      "final_distance_m": 53.50216850388604,
+      "final_speed_knots": 0.6,
+      "speed_violation_sample_count": 0,
+      "mean_latency_s": 0.043658403470026315,
+      "p95_latency_s": 0.04443447200083028,
+      "max_latency_s": 0.04637082899989764
+    },
+    {
+      "scenario": "diagonal",
+      "completed": false,
+      "steps": 100,
+      "simulated_seconds": 99.0,
+      "final_distance_m": 86.40786928379318,
+      "final_speed_knots": 0.6,
+      "speed_violation_sample_count": 0,
+      "mean_latency_s": 0.04256404345002011,
+      "p95_latency_s": 0.04418659300063155,
+      "max_latency_s": 0.05234156200003781
+    }
+  ],
+  "limitations": "Idealized motion; direct mode pauses world during inference; sampled speed checks are not continuous verification. UDP mode runs in real time. Cycle-limit status is not physical route completion."
+}

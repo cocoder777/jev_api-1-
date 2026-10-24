@@ -1,0 +1,20 @@
+{
+  "steps": 3000,
+  "duration_s": 2999.0,
+  "integrated_travel_m": 15431.181499144925,
+  "sampled_chord_total_m": 8668.671700483115,
+  "net_displacement_m": 144.1925961351978,
+  "opposite_command_changes": 2959,
+  "east_commands": 1482,
+  "west_commands": 1483,
+  "last_positions": [
+    [
+      24.336182297128982,
+      -140.40930555270032
+    ],
+    [
+      26.908404519351205,
+      -141.65960096806435
+    ]
+  ]
+}

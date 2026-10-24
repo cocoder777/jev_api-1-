@@ -1,0 +1,93 @@
+2026-10-23 00:46:57,618 INFO listening on UDP 127.0.0.1:58195
+2026-10-23 00:46:57,618 INFO subscribed to situation multicast 239.255.0.10:0 via 0.0.0.0
+2026-10-23 00:46:57,685 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:46:57,686 INFO started control loop for task crossing_km
+2026-10-23 00:46:57,686 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:46:57,787 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:46:57,881 INFO Kev inference_s=0.191832 choice=heading_07
+2026-10-23 00:46:57,881 INFO task crossing_km cycle=1 statePlatform=1010 speed=15.00 course=90.00
+2026-10-23 00:46:57,888 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:46:57,989 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:46:58,046 INFO Kev inference_s=0.157233 choice=heading_07
+2026-10-23 00:46:58,046 INFO task crossing_km cycle=2 statePlatform=1010 speed=15.00 course=90.00
+2026-10-23 00:46:58,090 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:46:58,191 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:46:58,258 INFO Kev inference_s=0.168649 choice=heading_07
+2026-10-23 00:46:58,258 INFO task crossing_km cycle=3 statePlatform=1010 speed=15.00 course=90.00
+2026-10-23 00:46:58,293 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:46:58,394 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:46:58,458 INFO Kev inference_s=0.169078 choice=heading_07
+2026-10-23 00:46:58,458 INFO task crossing_km cycle=4 statePlatform=1010 speed=15.00 course=90.00
+2026-10-23 00:46:58,495 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:46:58,596 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:46:58,659 INFO Kev inference_s=0.170263 choice=heading_07
+2026-10-23 00:46:58,659 INFO task crossing_km cycle=5 statePlatform=1010 speed=15.00 course=90.00
+2026-10-23 00:46:58,697 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:46:58,798 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:46:58,859 INFO Kev inference_s=0.170917 choice=heading_07
+2026-10-23 00:46:58,860 INFO task crossing_km cycle=6 statePlatform=1010 speed=15.00 course=90.00
+2026-10-23 00:46:58,899 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:46:59,000 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:46:59,060 INFO Kev inference_s=0.170855 choice=heading_07
+2026-10-23 00:46:59,060 INFO task crossing_km cycle=7 statePlatform=1010 speed=15.00 course=90.00
+2026-10-23 00:46:59,101 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:46:59,202 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:46:59,262 INFO Kev inference_s=0.172895 choice=heading_07
+2026-10-23 00:46:59,262 INFO task crossing_km cycle=8 statePlatform=1010 speed=15.00 course=90.00
+2026-10-23 00:46:59,303 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:46:59,404 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:46:59,460 INFO Kev inference_s=0.171194 choice=heading_07
+2026-10-23 00:46:59,460 INFO task crossing_km cycle=9 statePlatform=1010 speed=15.00 course=90.00
+2026-10-23 00:46:59,505 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:46:59,606 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:46:59,662 INFO Kev inference_s=0.172952 choice=heading_07
+2026-10-23 00:46:59,662 INFO task crossing_km cycle=10 statePlatform=1010 speed=15.00 course=90.00
+2026-10-23 00:46:59,707 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:46:59,808 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:46:59,860 INFO Kev inference_s=0.170788 choice=heading_07
+2026-10-23 00:46:59,860 INFO task crossing_km cycle=11 statePlatform=1010 speed=15.00 course=90.00
+2026-10-23 00:46:59,909 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:00,010 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:00,062 INFO Kev inference_s=0.172535 choice=heading_07
+2026-10-23 00:47:00,062 INFO task crossing_km cycle=12 statePlatform=1010 speed=15.00 course=90.00
+2026-10-23 00:47:00,111 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:00,212 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:00,260 INFO Kev inference_s=0.170973 choice=heading_07
+2026-10-23 00:47:00,260 INFO task crossing_km cycle=13 statePlatform=1010 speed=15.00 course=90.00
+2026-10-23 00:47:00,313 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:00,414 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:00,460 INFO Kev inference_s=0.171190 choice=heading_07
+2026-10-23 00:47:00,460 INFO task crossing_km cycle=14 statePlatform=1010 speed=15.00 course=90.00
+2026-10-23 00:47:00,515 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:00,616 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:00,660 INFO Kev inference_s=0.171371 choice=heading_07
+2026-10-23 00:47:00,660 INFO task crossing_km cycle=15 statePlatform=1010 speed=15.00 course=90.00
+2026-10-23 00:47:00,689 INFO stop requested for task crossing_km
+2026-10-23 00:47:00,718 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:00,819 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:00,860 INFO Kev inference_s=0.170833 choice=heading_07
+2026-10-23 00:47:00,920 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:01,023 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:01,127 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:01,230 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:01,332 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:01,436 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:01,539 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:01,642 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:01,744 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:01,846 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:01,948 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:02,050 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:02,153 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:02,257 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:02,360 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:02,463 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:02,565 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:02,667 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:02,769 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:02,872 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:02,974 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:03,076 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:03,179 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:03,283 INFO received situation platformId=1010 from 127.0.0.1:34327
+2026-10-23 00:47:03,287 INFO task crossing_km stopped

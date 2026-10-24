@@ -1,0 +1,22 @@
+{
+  "backend": "julia",
+  "device": "cpu",
+  "transport": "direct",
+  "model_path": "/home/epic/jev_api(1)/models/Julia-1",
+  "elapsed_s": 8.12958572000025,
+  "results": [
+    {
+      "scenario": "straight",
+      "completed": false,
+      "steps": 3,
+      "simulated_seconds": 2.0,
+      "final_distance_m": 70.30022859690264,
+      "final_speed_knots": 1.2,
+      "speed_violation_sample_count": 0,
+      "mean_latency_s": 1.274302250333373,
+      "p95_latency_s": 1.273371911999675,
+      "max_latency_s": 1.2763134249998984
+    }
+  ],
+  "limitations": "Idealized motion; direct mode pauses world during inference; sampled speed checks are not continuous verification. UDP mode runs in real time. Cycle-limit status is not physical route completion."
+}

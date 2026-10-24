@@ -1,0 +1,27 @@
+{
+  "dt": 0.2,
+  "max_speed_knots": 3.0,
+  "backend": "julia",
+  "device": "cuda",
+  "transport": "direct",
+  "model_path": "/home/epic/jev_api(1)/models/Julia-1",
+  "elapsed_s": 15.95029717000034,
+  "results": [
+    {
+      "scenario": "crossing_reference",
+      "completed": false,
+      "steps": 600,
+      "reached_waypoints": 0,
+      "total_waypoints": 10,
+      "target_waypoint_index": 1,
+      "simulated_seconds": 119.80000000000001,
+      "final_distance_m": 8.095166235563912,
+      "final_speed_knots": 4.619498879172888e-42,
+      "speed_violation_sample_count": 0,
+      "mean_latency_s": 0.019245711824963412,
+      "p95_latency_s": 0.019750864999878104,
+      "max_latency_s": 0.19594993400096428
+    }
+  ],
+  "limitations": "Idealized motion; direct mode pauses world during inference; sampled speed checks are not continuous verification. UDP mode runs in real time. Cycle-limit status is not physical route completion."
+}

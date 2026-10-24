@@ -1,0 +1,53 @@
+{
+  "crossing_harbor": {
+    "description": "Tenfold expansion of the crossing reference route for a larger harbor-scale test.",
+    "points_m": [
+      [
+        0,
+        0
+      ],
+      [
+        64,
+        0
+      ],
+      [
+        -32,
+        64
+      ],
+      [
+        80,
+        80
+      ],
+      [
+        -48,
+        -16
+      ],
+      [
+        32,
+        96
+      ],
+      [
+        96,
+        -32
+      ],
+      [
+        -40,
+        24
+      ],
+      [
+        48,
+        40
+      ],
+      [
+        0,
+        -48
+      ],
+      [
+        72,
+        56
+      ]
+    ],
+    "radius_m": 8,
+    "speed_knots": 6
+  }
+}

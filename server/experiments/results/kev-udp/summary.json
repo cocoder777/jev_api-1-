@@ -1,0 +1,74 @@
+{
+  "completion_mode": "final_waypoint_arrival",
+  "kev_endpoint": "http://127.0.0.1:18028/v1/systemone",
+  "dt": 1.0,
+  "effective_speeds_knots": [
+    15.0
+  ],
+  "max_speed_knots": 12.0,
+  "backend": "kev",
+  "device": "kev_service",
+  "transport": "udp",
+  "model_path": null,
+  "elapsed_s": 18.59387295000124,
+  "results": [
+    {
+      "inference_seconds": [
+        0.220877,
+        0.204716,
+        0.2081,
+        0.208264,
+        0.210175,
+        0.210471,
+        0.210382,
+        0.209991,
+        0.21065,
+        0.210798,
+        0.209614,
+        0.209635,
+        0.209835,
+        0.209704,
+        0.210338,
+        0.209674
+      ],
+      "received_controls": 19,
+      "transport": "localhost UDP",
+      "task_address": [
+        "127.0.0.1",
+        33444
+      ],
+      "action_address": [
+        "127.0.0.1",
+        34204
+      ],
+      "status_address": [
+        "127.0.0.1",
+        55576
+      ],
+      "final_status": {
+        "simId": "local-civilian",
+        "id": "crossing_km",
+        "code": "trackingMode",
+        "status": 2,
+        "description": "stopped",
+        "params": {
+          "nextWaypointIndex": 1,
+          "nextWaypoint": {
+            "routeLon": 120.50665207154643,
+            "routeLat": 30.2,
+            "routeSpeed": 20,
+            "routeRadius": 50
+          },
+          "remainingWaypointNum": 10,
+          "remainingDistanceM": 11850.0,
+          "estimatedRemainingTimeS": 11306.98,
+          "completionRate": 0.96
+        }
+      },
+      "received_statuses": 20,
+      "received_motion": true,
+      "stopped": true
+    }
+  ],
+  "limitations": "Idealized motion; direct mode pauses world during inference; sampled speed checks are not continuous verification. UDP mode runs in real time. Cycle-limit status is not physical route completion."
+}

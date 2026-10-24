@@ -1,0 +1,173 @@
+2026-10-22 22:36:40,819 INFO listening on UDP 127.0.0.1:36245
+2026-10-22 22:36:40,819 INFO subscribed to situation multicast 239.255.0.10:0 via 0.0.0.0
+2026-10-22 22:36:40,907 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:40,908 INFO started control loop for task straight
+2026-10-22 22:36:40,908 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:41,009 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:41,109 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:41,210 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:41,311 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:41,413 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:41,514 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:41,617 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:41,718 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:41,820 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:41,921 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:42,023 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:42,125 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:42,219 INFO Julia inference_s=1.279583 choice=speed_1__southwest
+2026-10-22 22:36:42,219 INFO task straight cycle=1 statePlatform=1010 speed=0.60 course=225.00
+2026-10-22 22:36:42,231 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:42,328 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:42,429 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:42,531 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:42,632 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:42,734 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:42,835 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:42,937 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:43,038 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:43,140 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:43,242 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:43,343 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:43,445 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:43,535 INFO Julia inference_s=1.284459 choice=speed_1__southwest
+2026-10-22 22:36:43,535 INFO task straight cycle=2 statePlatform=1010 speed=0.60 course=225.00
+2026-10-22 22:36:43,551 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:43,647 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:43,749 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:43,850 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:43,952 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:44,054 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:44,156 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:44,258 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:44,359 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:44,461 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:44,563 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:44,665 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:44,767 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:44,867 INFO Julia inference_s=1.299746 choice=speed_1__southeast
+2026-10-22 22:36:44,867 INFO task straight cycle=3 statePlatform=1010 speed=0.60 course=135.00
+2026-10-22 22:36:44,873 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:44,970 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:45,072 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:45,174 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:45,275 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:45,377 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:45,478 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:45,580 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:45,682 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:45,784 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:45,886 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:45,988 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:46,090 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:46,191 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:46,201 INFO Julia inference_s=1.301677 choice=speed_2__east
+2026-10-22 22:36:46,201 INFO task straight cycle=4 statePlatform=1010 speed=1.20 course=90.00
+2026-10-22 22:36:46,292 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:46,394 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:46,496 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:46,597 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:46,699 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:46,801 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:46,902 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:47,005 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:47,107 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:47,209 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:47,311 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:47,412 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:47,513 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:47,534 INFO Julia inference_s=1.301189 choice=speed_4__northwest
+2026-10-22 22:36:47,534 INFO task straight cycle=5 statePlatform=1010 speed=4.20 course=315.00
+2026-10-22 22:36:47,615 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:47,716 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:47,818 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:47,920 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:48,021 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:48,123 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:48,225 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:48,327 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:48,429 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:48,531 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:48,633 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:48,735 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:48,836 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:48,866 INFO Julia inference_s=1.300273 choice=speed_2__east
+2026-10-22 22:36:48,867 INFO task straight cycle=6 statePlatform=1010 speed=1.20 course=90.00
+2026-10-22 22:36:48,938 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:49,039 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:49,141 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:49,242 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:49,344 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:49,446 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:49,547 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:49,650 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:49,752 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:49,853 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:49,955 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:50,057 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:50,158 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:50,201 INFO Julia inference_s=1.302346 choice=speed_1__southwest
+2026-10-22 22:36:50,201 INFO task straight cycle=7 statePlatform=1010 speed=0.60 course=225.00
+2026-10-22 22:36:50,260 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:50,361 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:50,463 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:50,565 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:50,667 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:50,768 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:50,870 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:50,972 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:51,074 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:51,175 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:51,277 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:51,379 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:51,480 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:51,536 INFO Julia inference_s=1.302770 choice=speed_1__southeast
+2026-10-22 22:36:51,536 INFO task straight cycle=8 statePlatform=1010 speed=0.60 course=135.00
+2026-10-22 22:36:51,582 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:51,684 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:51,785 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:51,888 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:51,990 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:52,092 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:52,193 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:52,295 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:52,396 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:52,498 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:52,600 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:52,702 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:52,804 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:52,873 INFO Julia inference_s=1.304427 choice=speed_1__southwest
+2026-10-22 22:36:52,873 INFO task straight cycle=9 statePlatform=1010 speed=0.60 course=225.00
+2026-10-22 22:36:52,905 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:52,915 INFO stop requested for task straight
+2026-10-22 22:36:53,007 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:53,109 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:53,210 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:53,312 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:53,413 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:53,515 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:53,617 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:53,719 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:53,821 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:53,923 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:54,025 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:54,126 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:54,208 INFO Julia inference_s=1.303357 choice=speed_1__southwest
+2026-10-22 22:36:54,228 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:54,333 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:54,436 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:54,540 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:54,644 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:54,746 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:54,850 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:54,953 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:55,055 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:55,159 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:55,262 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:55,364 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:55,468 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:55,571 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:55,675 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:55,777 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:55,880 INFO received situation platformId=1010 from 127.0.0.1:60274
+2026-10-22 22:36:55,908 INFO task straight stopped

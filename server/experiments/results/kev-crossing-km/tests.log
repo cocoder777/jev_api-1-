@@ -1,0 +1,32 @@
+test_api_failure_propagates (test_jev_policy.JevIntegrationTests.test_api_failure_propagates) ... ok
+test_binary_task_to_jev_and_binary_action (test_jev_policy.JevIntegrationTests.test_binary_task_to_jev_and_binary_action) ... ok
+test_duplicate_task_registry (test_jev_policy.JevIntegrationTests.test_duplicate_task_registry) ... ok
+test_fragmented_stop_reassembly (test_jev_policy.JevIntegrationTests.test_fragmented_stop_reassembly) ... ok
+test_missing_own_boat_and_unknown_speed (test_jev_policy.JevIntegrationTests.test_missing_own_boat_and_unknown_speed) ... ok
+test_mps_conversion (test_jev_policy.JevIntegrationTests.test_mps_conversion) ... ok
+test_progress_and_task_reset (test_jev_policy.JevIntegrationTests.test_progress_and_task_reset) ... ok
+test_progress_formula_and_boundaries (test_jev_policy.JevIntegrationTests.test_progress_formula_and_boundaries) ... ok
+test_status_contains_route_progress (test_jev_policy.JevIntegrationTests.test_status_contains_route_progress) ... ok
+test_status_reporter_runs_independently (test_jev_policy.JevIntegrationTests.test_status_reporter_runs_independently) ... ok
+test_stop_during_jev_call_suppresses_obsolete_tracking_action (test_jev_policy.JevIntegrationTests.test_stop_during_jev_call_suppresses_obsolete_tracking_action) ... ok
+test_stop_waits_for_actual_speed_and_reports_completion (test_jev_policy.JevIntegrationTests.test_stop_waits_for_actual_speed_and_reports_completion) ... ok
+test_task_failure_sends_stop_before_failure_status (test_jev_policy.JevIntegrationTests.test_task_failure_sends_stop_before_failure_status) ... task b0bb189b-dc19-419c-8cd7-09e66646a25a failed: API timed out
+task b0bb189b-dc19-419c-8cd7-09e66646a25a failed; sent emergency stop to 192.168.3.56:18123
+ok
+test_binary_control_preserves_half_degree_course_and_units (test_kev_policy.KevTests.test_binary_control_preserves_half_degree_course_and_units) ... ok
+test_factory_keeps_kev_http_settings_separate_from_jev (test_kev_policy.KevTests.test_factory_keeps_kev_http_settings_separate_from_jev) ... ok
+test_fixed_speed_and_all_sixteen_absolute_courses_decode (test_kev_policy.KevTests.test_fixed_speed_and_all_sixteen_absolute_courses_decode) ... ok
+test_invalid_or_unavailable_model_does_not_substitute_course (test_kev_policy.KevTests.test_invalid_or_unavailable_model_does_not_substitute_course) ... ok
+test_kev_simulator_finishes_on_arrival_without_zero_speed (test_kev_policy.KevTests.test_kev_simulator_finishes_on_arrival_without_zero_speed) ... ok
+test_recent_history_is_bounded_and_reset_for_new_task (test_kev_policy.KevTests.test_recent_history_is_bounded_and_reset_for_new_task) ... ok
+test_binary_telemetry_roundtrip_coordinates_and_units (test_local_policy.LocalPolicyTests.test_binary_telemetry_roundtrip_coordinates_and_units) ... ok
+test_invalid_model_choice_fails_instead_of_substituting_action (test_local_policy.LocalPolicyTests.test_invalid_model_choice_fails_instead_of_substituting_action) ... ok
+test_lower_speed_decodes_to_ten_knots_and_malformed_response_fails (test_local_policy.LocalPolicyTests.test_lower_speed_decodes_to_ten_knots_and_malformed_response_fails) ... ok
+test_missing_weights_and_unknown_backend_are_explicit_errors (test_local_policy.LocalPolicyTests.test_missing_weights_and_unknown_backend_are_explicit_errors) ... ok
+test_sixteen_candidates_are_selected_in_one_call_without_changing_jev (test_local_policy.LocalPolicyTests.test_sixteen_candidates_are_selected_in_one_call_without_changing_jev) ... ok
+test_speed_unit_conversion_and_progress_are_shared (test_local_policy.LocalPolicyTests.test_speed_unit_conversion_and_progress_are_shared) ... ok
+
+----------------------------------------------------------------------
+Ran 25 tests in 0.482s
+
+OK

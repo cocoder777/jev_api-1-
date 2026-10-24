@@ -1,0 +1,14 @@
+{
+  "python": "3.12.3",
+  "torch": "2.8.0+cu128",
+  "transformers": "5.20.2",
+  "peft": "0.21.2",
+  "kev": "0.1.0",
+  "cuda": "12.8",
+  "gpu": "NVIDIA GeForce RTX 5090",
+  "precision": "bf16",
+  "fused": false,
+  "cuda_graphs": false,
+  "prefix_cache": 0,
+  "endpoint": "http://127.0.0.1:18028/v1/systemone"
+}

@@ -1,0 +1,61 @@
+{
+  "backend": "julia",
+  "device": "cpu",
+  "transport": "udp",
+  "model_path": "/home/epic/jev_api(1)/models/Julia-1",
+  "elapsed_s": 19.19343249800022,
+  "results": [
+    {
+      "inference_seconds": [
+        1.279583,
+        1.284459,
+        1.299746,
+        1.301677,
+        1.301189,
+        1.300273,
+        1.302346,
+        1.30277,
+        1.304427,
+        1.303357
+      ],
+      "received_controls": 16,
+      "transport": "localhost UDP",
+      "task_address": [
+        "127.0.0.1",
+        36245
+      ],
+      "action_address": [
+        "127.0.0.1",
+        54829
+      ],
+      "status_address": [
+        "127.0.0.1",
+        60274
+      ],
+      "final_status": {
+        "simId": "local-civilian",
+        "id": "straight",
+        "code": "trackingMode",
+        "status": 2,
+        "description": "stopped",
+        "params": {
+          "nextWaypointIndex": 1,
+          "nextWaypoint": {
+            "routeLon": 120.5,
+            "routeLat": 30.20062882069888,
+            "routeSpeed": 6.0,
+            "routeRadius": 8.0
+          },
+          "remainingWaypointNum": 1,
+          "remainingDistanceM": 69.33,
+          "estimatedRemainingTimeS": null,
+          "completionRate": 0.96
+        }
+      },
+      "received_statuses": 17,
+      "received_motion": true,
+      "stopped": true
+    }
+  ],
+  "limitations": "Idealized motion; direct mode pauses world during inference; sampled speed checks are not continuous verification. UDP mode runs in real time. Cycle-limit status is not physical route completion."
+}

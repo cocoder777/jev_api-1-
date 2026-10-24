@@ -1,0 +1,78 @@
+{
+  "recorded_at": "2026-10-23T17:47:20.222540+08:00",
+  "purpose": "记录后撤回上次Kev 160动作与转弯前瞻改动",
+  "files": [
+    {
+      "path": "server/policies/kev_policy.py",
+      "modified_sha256": "f7a020ef92c9338314a08fa27c6c37a084c2abd18b43aaf978af0e88899dd922",
+      "restored_sha256": "70de36da62a14b5f43ee5b6098e42e724b6643184a5cca0f8ec6e6a5396beaf7"
+    },
+    {
+      "path": "server/policies/turning.py",
+      "modified_sha256": "23d8aaf0be8b6810cb459f6188e26527367cf47abdbbd561283e4542d4adf7dd",
+      "restored_sha256": "126d7b8de0e1df944b44fcaa62096dfd0194fe0a58c4081f4a89491a6756723f"
+    },
+    {
+      "path": "jev_api/choice_control.py",
+      "modified_sha256": "527871dbf373442644213fd91104a62da1904a4efdd91ee90d2f027683c5196a",
+      "restored_sha256": "f50fbc92240aa43f7bc2e8ee7658edff93dd5b38d47bcd2504a4323037cf2101"
+    },
+    {
+      "path": "server/decision_service.py",
+      "modified_sha256": "e04786ee2b9bdf38ac1c4983a9ee18c6f927eab2e9d5859bee8eeb1890471893",
+      "restored_sha256": "ade267d283d330adeffc0f16d8ba2631f4f9d4e6ed04aa6554e50f04fd3f801d"
+    },
+    {
+      "path": "server/tests/test_kev_policy.py",
+      "modified_sha256": "3dd74dea4b76c6e21306c733e4e0d196d06eb12c3c5baeb82874f4d42f329227",
+      "restored_sha256": "ce882944f535e73ca24385ad3526dcf7e91a46176daf396198e7f3c2e1ebcc2a"
+    },
+    {
+      "path": "server/tests/test_task_control.py",
+      "modified_sha256": "8e88bfc9169445632cbe42f291f294727ff4646692bb243f2583f21fdecb5bdb",
+      "restored_sha256": "cd23e8441b9bf6c86635e08f017dfeac1e2690d686af74e46340edc4fdacfe2c"
+    },
+    {
+      "path": "server/tests/test_service_config.py",
+      "modified_sha256": "b815ee023d9eff3638c6694ee016750a9f3973a6fe1edc084d41f5055122c24b",
+      "restored_sha256": "49e2fc67cb068eeb24868b0006189f7461d7ee541e94481426ec0d87dc813042"
+    },
+    {
+      "path": "server/experiments/simulate.py",
+      "modified_sha256": "4209c63c980ce586722ccaf529f5148ba980e7faa38f565d251d136271883b51",
+      "restored_sha256": "aab4c853197fbd36d9bec0fabbe83419e0f15181ae02aa67a5ec7233fdb1735e"
+    },
+    {
+      "path": "server/README.md",
+      "modified_sha256": "54975ec7c6a3bb821418cf0309b59cf6a0369574b93062d909f58822f3ffd3cc",
+      "restored_sha256": "5e9aeada885f2e4acb04d09a9576e36a75e465b1ad04aa20cef11569945e7e1b"
+    },
+    {
+      "path": "server/KEV.md",
+      "modified_sha256": "efc13514e153c319bbbb94c9a46bf64b0d8173eadf0d947c4258f3a5f5f20346",
+      "restored_sha256": "aa9cdd02a307ed1beb5c16eab835cace2a502e771c66ee40d76808ef52a621cb"
+    },
+    {
+      "path": ".env.example",
+      "modified_sha256": "7b907bebc40b30c5c670e4f854799026ea69b7b728a4d85772c3e0dd3776b29c",
+      "restored_sha256": "a8196d4b2978e849f18cd36fb90dc58b49fd0f0b0f9739788ae8219a6f510d39"
+    },
+    {
+      "path": "compose.yaml",
+      "modified_sha256": "899290f16d8b380334cf3638e3da2394824bd3ecebc48a91411c09fb58d8ed04",
+      "restored_sha256": "f0175f37c99cc7b8bbf0ceb1e85ec660fa6db6169cd4e9f596f2715e87a5181c"
+    },
+    {
+      "path": "server/experiments/examples/kev_request.json",
+      "modified_sha256": "c924a3fd1cfb12ceb81f31013d8e5ca697bd2ec7ea295e9e79d97ae1d4b97985",
+      "restored_sha256": "cbc204d26aca412428d77049b012ce3bc777a4449e408d04352948e174da5c9b"
+    }
+  ],
+  "status": "reverted",
+  "validation": {
+    "command": "python3 -m unittest discover -s server/tests -v",
+    "passed": 73,
+    "reapply_patch_dry_run": "passed",
+    "archive_hashes_verified": true
+  }
+}

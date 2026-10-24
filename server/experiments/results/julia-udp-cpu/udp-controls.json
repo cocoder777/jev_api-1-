@@ -1,0 +1,130 @@
+[
+  {
+    "t": 1.319172134000837,
+    "command": {
+      "platCode": 1010,
+      "speed": 0.6,
+      "course": 225.0
+    }
+  },
+  {
+    "t": 2.628636918000666,
+    "command": {
+      "platCode": 1010,
+      "speed": 0.6,
+      "course": 225.0
+    }
+  },
+  {
+    "t": 3.9613435640003445,
+    "command": {
+      "platCode": 1010,
+      "speed": 0.6,
+      "course": 135.0
+    }
+  },
+  {
+    "t": 5.304139026000485,
+    "command": {
+      "platCode": 1010,
+      "speed": 1.2,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 6.636715027000719,
+    "command": {
+      "platCode": 1010,
+      "speed": 4.2,
+      "course": 315.0
+    }
+  },
+  {
+    "t": 7.9695101420002175,
+    "command": {
+      "platCode": 1010,
+      "speed": 1.2,
+      "course": 90.0
+    }
+  },
+  {
+    "t": 9.30182362800042,
+    "command": {
+      "platCode": 1010,
+      "speed": 0.6,
+      "course": 225.0
+    }
+  },
+  {
+    "t": 10.63401164700008,
+    "command": {
+      "platCode": 1010,
+      "speed": 0.6,
+      "course": 135.0
+    }
+  },
+  {
+    "t": 11.967486487000315,
+    "command": {
+      "platCode": 1010,
+      "speed": 0.6,
+      "course": 225.0
+    }
+  },
+  {
+    "t": 13.310446003000834,
+    "command": {
+      "platCode": 1010,
+      "speed": 0.0,
+      "course": 218.0
+    }
+  },
+  {
+    "t": 13.310446003000834,
+    "command": {
+      "platCode": 1010,
+      "speed": 0.0,
+      "course": 218.0
+    }
+  },
+  {
+    "t": 13.310446003000834,
+    "command": {
+      "platCode": 1010,
+      "speed": 0.0,
+      "course": 218.0
+    }
+  },
+  {
+    "t": 13.310446003000834,
+    "command": {
+      "platCode": 1010,
+      "speed": 0.0,
+      "course": 218.0
+    }
+  },
+  {
+    "t": 13.310446003000834,
+    "command": {
+      "platCode": 1010,
+      "speed": 0.0,
+      "course": 218.0
+    }
+  },
+  {
+    "t": 14.005234535000454,
+    "command": {
+      "platCode": 1010,
+      "speed": 0.0,
+      "course": 219.0
+    }
+  },
+  {
+    "t": 15.003621433000262,
+    "command": {
+      "platCode": 1010,
+      "speed": 0.0,
+      "course": 219.0
+    }
+  }
+]
