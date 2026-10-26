@@ -1,0 +1,52 @@
+{
+  "4001": {
+    "nearest_vessel_ids_when_seen": [
+      1006,
+      1010
+    ],
+    "max_nearest_vessel_distance_when_seen_m": 2582.2,
+    "min_nearest_vessel_distance_when_absent_m": null
+  },
+  "4002": {
+    "nearest_vessel_ids_when_seen": [
+      1010
+    ],
+    "max_nearest_vessel_distance_when_seen_m": 5021.13,
+    "min_nearest_vessel_distance_when_absent_m": 5033.96
+  },
+  "4003": {
+    "nearest_vessel_ids_when_seen": [
+      1010
+    ],
+    "max_nearest_vessel_distance_when_seen_m": 5025.63,
+    "min_nearest_vessel_distance_when_absent_m": 5038.8
+  },
+  "4004": {
+    "nearest_vessel_ids_when_seen": [
+      1010
+    ],
+    "max_nearest_vessel_distance_when_seen_m": 5021.71,
+    "min_nearest_vessel_distance_when_absent_m": 5032.77
+  },
+  "4005": {
+    "nearest_vessel_ids_when_seen": [
+      1010
+    ],
+    "max_nearest_vessel_distance_when_seen_m": 5017.94,
+    "min_nearest_vessel_distance_when_absent_m": 5028.19
+  },
+  "4006": {
+    "nearest_vessel_ids_when_seen": [
+      1010
+    ],
+    "max_nearest_vessel_distance_when_seen_m": 5017.14,
+    "min_nearest_vessel_distance_when_absent_m": 5030.31
+  },
+  "4007": {
+    "nearest_vessel_ids_when_seen": [
+      1010
+    ],
+    "max_nearest_vessel_distance_when_seen_m": 5003.97,
+    "min_nearest_vessel_distance_when_absent_m": 5013.38
+  }
+}

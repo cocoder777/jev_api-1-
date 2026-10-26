@@ -1,0 +1,42 @@
+{
+  "4002": {
+    "age_s": 0.501,
+    "current_distance_m": 2387.9,
+    "first_seen_elapsed_s": 0.3,
+    "first_seen_distance_m": 4264.1,
+    "max_seen_distance_m": 4264.1,
+    "min_distance_when_absent_m": null
+  },
+  "4003": {
+    "age_s": 0.501,
+    "current_distance_m": 2158.1,
+    "first_seen_elapsed_s": 0.3,
+    "first_seen_distance_m": 4488.2,
+    "max_seen_distance_m": 4488.2,
+    "min_distance_when_absent_m": null
+  },
+  "4001": {
+    "age_s": 0.501,
+    "current_distance_m": 5364.4,
+    "first_seen_elapsed_s": 0.3,
+    "first_seen_distance_m": 1287.3,
+    "max_seen_distance_m": 5472.2,
+    "min_distance_when_absent_m": null
+  },
+  "4004": {
+    "age_s": 0.501,
+    "current_distance_m": 397.5,
+    "first_seen_elapsed_s": 78.3,
+    "first_seen_distance_m": 5020.0,
+    "max_seen_distance_m": 5020.0,
+    "min_distance_when_absent_m": 5032.8
+  },
+  "4005": {
+    "age_s": 0.501,
+    "current_distance_m": 3847.5,
+    "first_seen_elapsed_s": 217.29,
+    "first_seen_distance_m": 5017.2,
+    "max_seen_distance_m": 5017.2,
+    "min_distance_when_absent_m": 5030.2
+  }
+}

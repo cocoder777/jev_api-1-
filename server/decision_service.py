@@ -39,6 +39,7 @@ LOCAL_CONFIG_PATH = Path(__file__).resolve().with_name("decision_service.local.j
 DEFAULT_JEV_ENDPOINT = "https://api.jevcn.cn/v1/systemone"
 DEFAULT_HOST = "0.0.0.0"
 DEFAULT_PORT = 18014
+DEFAULT_PLATFORM_ID = 1010
 DEFAULT_BUFFER_SIZE = 65_507
 DEFAULT_SITUATION_GROUP = "239.255.0.10"
 DEFAULT_SITUATION_PORT = 18010
@@ -1157,8 +1158,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--platform-id",
         type=int,
-        default=int(platform_id_env) if platform_id_env else None,
-        help="本服务负责的平台编码；未设置时兼容接收所有平台任务",
+        default=int(platform_id_env) if platform_id_env else DEFAULT_PLATFORM_ID,
+        help="本服务负责的平台编码，默认1010；可通过PLATFORM_ID或此参数覆盖",
     )
     parser.add_argument(
         "--status-interval",

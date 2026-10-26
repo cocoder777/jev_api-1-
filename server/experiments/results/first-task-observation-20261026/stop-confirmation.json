@@ -1,0 +1,8 @@
+{
+  "stopped_at_utc": "2026-10-26T10:40:16.525639+00:00",
+  "reason": "User replied 可以了 to the request to notify when the first task ends.",
+  "observer_pids_signalled": [
+    110080
+  ],
+  "terminal_status_packet_captured": false
+}
