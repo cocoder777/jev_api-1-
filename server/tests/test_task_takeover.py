@@ -168,7 +168,7 @@ class TaskTakeoverTests(unittest.TestCase):
                 release.wait(2.)
             else:
                 second.set()
-            return {'answers': {'action': {'type': 'choice', 'choice': 'heading_07'}}}
+            return {'answers': {'action': {'type': 'choice', 'choice': 'speed_50__heading_07'}}}
 
         policy.client = call
         first_packet = dict(task(), situation=(state(),))

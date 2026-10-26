@@ -66,7 +66,7 @@ def error_details(stage, exc):
         code = "CONTROL_SEND_FAILED"
     else:
         code = "INVALID_TASK"
-    return dict(errorCode=code, errorStage=stage, errorType=type(exc).__name__, lastError=text[:600])
+    return dict(errorCode=getattr(exc, 'error_code', code), errorStage=stage, errorType=type(exc).__name__, lastError=text[:600])
 
 
 def retryable_error(stage, exc):

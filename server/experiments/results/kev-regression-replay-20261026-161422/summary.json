@@ -1,0 +1,81 @@
+{
+  "old_exact": {
+    "n": 6,
+    "choices": {
+      "improves_heading": 6
+    },
+    "mean_heading_error_after_deg": 42.055
+  },
+  "latest": {
+    "n": 12,
+    "choices": {
+      "straight": 9,
+      "improves_heading": 3
+    },
+    "mean_heading_error_after_deg": 138.61833333333334
+  },
+  "old_instructions": {
+    "n": 12,
+    "choices": {
+      "improves_heading": 3,
+      "straight": 9
+    },
+    "mean_heading_error_after_deg": 141.11833333333334
+  },
+  "old_option_ids": {
+    "n": 12,
+    "choices": {
+      "straight": 9,
+      "improves_heading": 3
+    },
+    "mean_heading_error_after_deg": 138.61833333333334
+  },
+  "relative_coordinate_fields": {
+    "n": 12,
+    "choices": {
+      "straight": 8,
+      "improves_heading": 4
+    },
+    "mean_heading_error_after_deg": 135.86833333333334
+  },
+  "no_next_direction": {
+    "n": 12,
+    "choices": {
+      "straight": 10,
+      "improves_heading": 2
+    },
+    "mean_heading_error_after_deg": 141.86833333333334
+  },
+  "no_recent_history": {
+    "n": 12,
+    "choices": {
+      "straight": 12
+    },
+    "mean_heading_error_after_deg": 143.36833333333334
+  },
+  "absolute_turn_field": {
+    "n": 12,
+    "choices": {
+      "improves_heading": 10,
+      "straight": 2
+    },
+    "mean_heading_error_after_deg": 109.36833333333334
+  },
+  "no_redundant_option_speed": {
+    "n": 12,
+    "choices": {
+      "improves_heading": 3,
+      "straight": 9
+    },
+    "mean_heading_error_after_deg": 141.11833333333334
+  },
+  "legacy_presentation": {
+    "n": 12,
+    "choices": {
+      "improves_heading": 12
+    },
+    "mean_heading_error_after_deg": 98.36833333333334
+  },
+  "old_replay_exact_matches": 6,
+  "latest_replay_exact_matches": 12
+}

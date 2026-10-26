@@ -21,6 +21,7 @@ from server.decision_service import (
 from server.experiments.scenarios import SCENARIOS, ROUTES
 from server.policies.factory import create_policy
 from server.policies.turning import DEFAULT_MAX_TURN_RATE_DEG_S
+from server.policies.waypoint_radius import DEFAULT_ARRIVAL_RADIUS_M
 from tools.navigation_motion import predict_ground_motion
 from tools.waypoint_geometry import KNOT_MPS
 
@@ -79,7 +80,7 @@ def draw_map(ax, rows, name):
         label = 'S' if index == 0 else ('F' if index == len(points)-1 else f'P{index}')
         ax.annotate(label, (x, y), xytext=(5, 9), textcoords='offset points', fontsize=9)
         if index:
-            ax.add_patch(Circle((x, y), SCENARIOS[name]['radius_m'], fill=False, color='gray', alpha=.65))
+            ax.add_patch(Circle((x, y), DEFAULT_ARRIVAL_RADIUS_M, fill=False, color='gray', alpha=.65))
     ax.grid(alpha=.2)
 
 
@@ -91,7 +92,7 @@ def plot_map(rows, name, output, completed=None):
     fig, ax = plt.subplots(figsize=(11, 7))
     draw_map(ax, rows, name)
     points = ROUTES[name] + [(r['x'], r['y']) for r in rows]
-    radius = SCENARIOS[name]['radius_m']
+    radius = DEFAULT_ARRIVAL_RADIUS_M
     xs, ys = list(zip(*points))
     margin = max(radius*2, (max(xs)-min(xs))*.12, (max(ys)-min(ys))*.12)
     ax.set(xlim=(min(xs)-margin, max(xs)+margin), ylim=(min(ys)-margin, max(ys)+margin),
@@ -146,9 +147,9 @@ def direct(policy, name, args, out):
         current = min(policy.current_route(), len(ROUTES[name]) - 2) + 1
         target = ROUTES[name][current]
         distance = math.hypot(x-target[0], y-target[1])
-        if distance <= SCENARIOS[name]['radius_m'] and speed > SCENARIOS[name]['speed_knots'] * KNOT_MPS + .01:
+        if distance <= DEFAULT_ARRIVAL_RADIUS_M and speed > SCENARIOS[name]['speed_knots'] * KNOT_MPS + .01:
             violation_steps += 1
-        if current == len(ROUTES[name])-1 and distance <= SCENARIOS[name]['radius_m']:
+        if current == len(ROUTES[name])-1 and distance <= DEFAULT_ARRIVAL_RADIUS_M:
             final_arrived = True
         if final_arrived:
             command = dict(speed=0., course=course if course is not None else command['course'])
@@ -279,7 +280,7 @@ def main():
     p.add_argument('--model-path', type=Path, default=ROOT / 'models/Julia-1')
     p.add_argument('--transport', choices=['direct','udp'], default='direct')
     p.add_argument('--scenario', choices=[*ROUTES,'all'], default='all')
-    p.add_argument('--max-speed-knots', type=float, default=12.)
+    p.add_argument('--max-speed-knots', type=float, default=50.)
     p.add_argument('--steps', type=int, default=100)
     p.add_argument('--dt', type=float, default=1.)
     p.add_argument('--udp-seconds', type=float, default=25.)
@@ -289,9 +290,9 @@ def main():
         p.error('steps, dt, and udp-seconds must be positive')
     effective_speeds = [10., 20.] if args.backend == 'julia' else [args.max_speed_knots * f for f in (0, .05, .1, .2, .35, .5, .75, 1)]
     if args.backend == 'kev':
-        from server.policies.kev_policy import KEV_SPEED_KNOTS
-        effective_speeds = [KEV_SPEED_KNOTS]
-        print(f'Kev: {KEV_SPEED_KNOTS:g} knots, 16 local courses, turn rate <= {args.max_turn_rate_deg_s:g} deg/s, interval {args.dt:g}s, initial direction {args.initial_course_deg:g} deg (simulation assumption).', flush=True)
+        from server.policies.kev_policy import KEV_SPEEDS_KNOTS
+        effective_speeds = [speed for speed in KEV_SPEEDS_KNOTS if speed <= args.max_speed_knots]
+        print(f'Kev: {effective_speeds} knots x 16 local courses, turn rate <= {args.max_turn_rate_deg_s:g} deg/s, interval {args.dt:g}s, initial direction {args.initial_course_deg:g} deg (simulation assumption).', flush=True)
     if args.backend == 'julia':
         print('Julia uses fixed speeds [10, 20] knots and 16 options; --max-speed-knots does not change Julia speeds.', flush=True)
     out = args.output.resolve(); out.mkdir(parents=True, exist_ok=True)

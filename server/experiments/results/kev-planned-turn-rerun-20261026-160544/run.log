@@ -1,0 +1,4 @@
+START full_route initial_completed= 0 initial_position= (-640.0, 0.0) initial_heading= 90.0
+full_route: 100 steps, 1/10 waypoints, distance=1288.7m
+full_route: 200 steps, 1/10 waypoints, distance=1702.6m
+END full_route {"reason": "navigation_no_progress", "steps": 208, "reached_waypoints": 1, "total_waypoints": 10, "recovery_decisions": 169, "stop_confirmed": true}

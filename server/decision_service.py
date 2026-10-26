@@ -19,6 +19,7 @@ from typing import Any, Callable, Dict, Mapping, Optional, Tuple
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "jev_api"))
+from tools.waypoint_geometry import LocalFrame
 if __package__:
     from .control_runtime import error_details, run_task_control
     from .policies.waypoint_radius import waypoint_arrival_radius
@@ -581,10 +582,11 @@ class ControlSession:
                 value = point.get(field)
                 if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
                     raise ValueError("waypoint {} has invalid {}".format(index + 1, field))
-            waypoint_arrival_radius(point)
             if (not -180 <= point["routeLon"] <= 180 or not -90 <= point["routeLat"] <= 90
                     or point["routeSpeed"] < 0):
-                raise ValueError("waypoint {} has invalid coordinates, speed or radius".format(index + 1))
+                raise ValueError("waypoint {} has invalid coordinates or speed".format(index + 1))
+        self.frame = LocalFrame(self.waypoints)
+        self.waypoint_positions = [self.frame.project(p['routeLon'], p['routeLat']) for p in self.waypoints]
         self.current_route = params.get("next_waypoint_index", params.get("currentRoute", 0))
         self.initial_route = self.current_route
         self.start_state: Optional[Dict[str, Any]] = None
@@ -635,10 +637,10 @@ class ControlSession:
             if self.start_state is None:
                 self.start_state = dict(state)
             self.latest_state = dict(state)
-            position = {"routeLon": state["longitude"], "routeLat": state["latitude"]}
+            position = self.frame.project(state['longitude'], state['latitude'])
             while self.current_route < len(self.waypoints):
                 point = self.waypoints[self.current_route]
-                if route_distance_m(position, point) > waypoint_arrival_radius(point):
+                if math.dist(position, self.waypoint_positions[self.current_route]) > waypoint_arrival_radius(point):
                     break
                 self.current_route += 1
             self.progress = calculate_route_progress(
@@ -1118,7 +1120,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--endpoint", default=os.getenv("JEV_ENDPOINT", DEFAULT_JEV_ENDPOINT))
     parser.add_argument("--speed-unit", choices=("knots", "mps"), default=os.getenv("SPEED_UNIT", "knots"),
                         help="态势、航路点及控制报文速度单位，默认 knots")
-    parser.add_argument("--max-speed-knots", type=float, default=float(os.getenv("MAX_SPEED_KNOTS", "30.0")))
+    parser.add_argument("--max-speed-knots", type=float, default=float(os.getenv("MAX_SPEED_KNOTS", "50.0")))
     parser.add_argument("--speed-transition-time", type=float, default=float(os.getenv("SPEED_TRANSITION_TIME", "0.5")))
     parser.add_argument("--course-transition-time", type=float, default=float(os.getenv("COURSE_TRANSITION_TIME", "0.5")))
     parser.add_argument("--jev-timeout", type=float, default=float(os.getenv("JEV_TIMEOUT", "30.0")))

@@ -1,0 +1,119 @@
+{
+  "task": "full_route",
+  "task_id": "crossing-km-full_route",
+  "passed": false,
+  "completed": true,
+  "reason": "completed",
+  "error": null,
+  "steps": 582,
+  "reached_waypoints": 10,
+  "total_waypoints": 10,
+  "simulated_seconds": 581.0,
+  "final_speed_knots": 0.0,
+  "max_speed_knots": 50.0,
+  "max_actual_turn_rate_deg_s": 45.0,
+  "available_speeds_knots": [
+    10.0,
+    20.0,
+    30.0,
+    40.0,
+    50.0
+  ],
+  "recovery_decisions": 7,
+  "stop_confirmed": true,
+  "arrival_radius_m": 100.0,
+  "speed_unit": "knots",
+  "waypoint_speed_limits_knots": [
+    20,
+    20,
+    20,
+    20,
+    20,
+    20,
+    20,
+    20,
+    20,
+    20
+  ],
+  "speed_violation_count": 1,
+  "violations": [
+    {
+      "kind": "waypoint_speed",
+      "step": 563,
+      "index": 7,
+      "peak_speed_knots": 50.0,
+      "limit_knots": 20
+    }
+  ],
+  "arrivals": [
+    {
+      "index": 0,
+      "time_s": 31.0,
+      "speed_knots": 10.0
+    },
+    {
+      "index": 1,
+      "time_s": 83.0,
+      "speed_knots": 10.0
+    },
+    {
+      "index": 2,
+      "time_s": 138.0,
+      "speed_knots": 10.0
+    },
+    {
+      "index": 3,
+      "time_s": 220.0,
+      "speed_knots": 10.0
+    },
+    {
+      "index": 4,
+      "time_s": 281.0,
+      "speed_knots": 10.0
+    },
+    {
+      "index": 5,
+      "time_s": 346.0,
+      "speed_knots": 10.0
+    },
+    {
+      "index": 6,
+      "time_s": 423.0,
+      "speed_knots": 10.0
+    },
+    {
+      "index": 7,
+      "time_s": 466.0,
+      "speed_knots": 10.0
+    },
+    {
+      "index": 8,
+      "time_s": 521.0,
+      "speed_knots": 10.0
+    },
+    {
+      "index": 9,
+      "time_s": 580.0,
+      "speed_knots": 10.0
+    }
+  ],
+  "config": {
+    "steps": 2000,
+    "dt": 1.0,
+    "start_offset_m": 50.0,
+    "initial_course_deg": 90.0,
+    "initial_position_xy_m": [
+      -640.0,
+      0.0
+    ],
+    "max_turn_rate_deg_s": 45.0,
+    "kev_endpoint": "http://127.0.0.1:18028/v1/systemone",
+    "kev_timeout": 120.0
+  },
+  "elapsed_s": 175.21832574299697,
+  "limitations": "Idealized motion; simulation pauses during inference. No live UDP timing or measured hull dynamics.",
+  "initial_completed_waypoints": 0,
+  "diagnostic_recovery_limit": 10000,
+  "diagnostic_stop_cross_track_m": 800.0,
+  "diagnostic_stop_distance_growth_m": 1000.0
+}

@@ -1,0 +1,73 @@
+{
+  "simId": "local-civilian",
+  "id": "crossing-km-full_route",
+  "code": "trackingMode",
+  "params": {
+    "platCode": 1010,
+    "planRouteNum": 1,
+    "currentRoute": 0,
+    "planWaypointNum": 10,
+    "planWaypointList": [
+      {
+        "routeLon": 120.50665207154643,
+        "routeLat": 30.2,
+        "routeSpeed": 20,
+        "routeRadius": 50
+      },
+      {
+        "routeLon": 120.49667396422679,
+        "routeLat": 30.205749217818365,
+        "routeSpeed": 20,
+        "routeRadius": 50
+      },
+      {
+        "routeLon": 120.50831508943303,
+        "routeLat": 30.207186522272956,
+        "routeSpeed": 20,
+        "routeRadius": 50
+      },
+      {
+        "routeLon": 120.49501094634019,
+        "routeLat": 30.19856269554541,
+        "routeSpeed": 20,
+        "routeRadius": 50
+      },
+      {
+        "routeLon": 120.50332603577321,
+        "routeLat": 30.208623826727546,
+        "routeSpeed": 20,
+        "routeRadius": 50
+      },
+      {
+        "routeLon": 120.50997810731963,
+        "routeLat": 30.197125391090818,
+        "routeSpeed": 20,
+        "routeRadius": 50
+      },
+      {
+        "routeLon": 120.49584245528348,
+        "routeLat": 30.202155956681885,
+        "routeSpeed": 20,
+        "routeRadius": 50
+      },
+      {
+        "routeLon": 120.50498905365981,
+        "routeLat": 30.203593261136476,
+        "routeSpeed": 20,
+        "routeRadius": 50
+      },
+      {
+        "routeLon": 120.5,
+        "routeLat": 30.195688086636224,
+        "routeSpeed": 20,
+        "routeRadius": 50
+      },
+      {
+        "routeLon": 120.50748358048972,
+        "routeLat": 30.20503056559107,
+        "routeSpeed": 20,
+        "routeRadius": 50
+      }
+    ]
+  }
+}

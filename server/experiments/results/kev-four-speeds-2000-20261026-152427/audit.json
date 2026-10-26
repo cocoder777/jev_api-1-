@@ -1,0 +1,17 @@
+{
+  "real_decisions": 511,
+  "selected_speeds_knots": {
+    "20.0": 6,
+    "5.0": 505
+  },
+  "candidate_counts": {
+    "64": 511
+  },
+  "recovery_decisions": 0,
+  "display_offset_from_internal_m": [
+    640.0,
+    0
+  ],
+  "max_speed_knots": 20.0,
+  "max_actual_turn_rate_deg_s": 45.0
+}

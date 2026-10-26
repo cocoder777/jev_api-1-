@@ -1,0 +1,52 @@
+{
+  "failed_states": {
+    "latest": {
+      "straight": 9,
+      "improves_heading": 3
+    },
+    "absolute_turn_field": {
+      "improves_heading": 10,
+      "straight": 2
+    },
+    "absolute_turn_original_order": {
+      "straight": 12
+    },
+    "absolute_turn_old_instructions": {
+      "improves_heading": 12
+    },
+    "absolute_turn_relative_fields": {
+      "straight": 1,
+      "improves_heading": 11
+    },
+    "legacy_presentation": {
+      "improves_heading": 12
+    }
+  },
+  "held_out_states": {
+    "latest": {
+      "improves_heading": 5,
+      "worsens_heading": 1,
+      "straight": 6
+    },
+    "absolute_turn_field": {
+      "improves_heading": 9,
+      "straight": 2,
+      "worsens_heading": 1
+    },
+    "absolute_turn_original_order": {
+      "straight": 6,
+      "improves_heading": 5,
+      "worsens_heading": 1
+    },
+    "absolute_turn_old_instructions": {
+      "improves_heading": 12
+    },
+    "absolute_turn_relative_fields": {
+      "improves_heading": 10,
+      "straight": 2
+    },
+    "legacy_presentation": {
+      "improves_heading": 12
+    }
+  }
+}

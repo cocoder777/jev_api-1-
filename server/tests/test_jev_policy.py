@@ -39,7 +39,7 @@ class JevIntegrationTests(unittest.TestCase):
             result = service(build_json_packet(packet, ALGORITHM_TASK_ID), policy, tuple(situations))
         self.assertEqual(
             decode_speed_course_packet(result),
-            dict(platCode=packet["params"]["platCode"], speed=30, course=90),
+            dict(platCode=packet["params"]["platCode"], speed=50, course=90),
         )
         payload = policy.local.transport.call.call_args.args[0]
         self.assertEqual(policy.local.transport.call.call_args.args[1], "test-only")
@@ -77,7 +77,7 @@ class JevIntegrationTests(unittest.TestCase):
             "type": "choice", "choice": "speed_7__north"}}}
         with patch.dict("os.environ", {"JEV_API_KEY": "test-only"}):
             speed, course = policy(self.packet())
-        self.assertAlmostEqual(speed, 30 * KNOT_MPS)
+        self.assertAlmostEqual(speed, 50 * KNOT_MPS)
         self.assertEqual(course, 0)
 
     def test_api_failure_propagates(self):

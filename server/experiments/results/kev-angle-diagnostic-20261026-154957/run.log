@@ -1,0 +1,8 @@
+START full_route initial_completed= 0 initial_position= (-640.0, 0.0) initial_heading= 90.0
+full_route: 100 steps, 1/10 waypoints, distance=1195.1m
+full_route: 200 steps, 2/10 waypoints, distance=1118.9m
+full_route: 300 steps, 2/10 waypoints, distance=1579.6m
+END full_route {"reason": "navigation_no_progress", "steps": 360, "reached_waypoints": 2, "total_waypoints": 10, "recovery_decisions": 261, "stop_confirmed": true}
+START p2_p3_probe initial_completed= 1 initial_position= (-835.1924558500746, 556.7949705663489) initial_heading= 303.6900675259623
+p2_p3_probe: 100 steps, 2/10 waypoints, distance=1421.6m
+END p2_p3_probe {"reason": "navigation_no_progress", "steps": 187, "reached_waypoints": 2, "total_waypoints": 10, "recovery_decisions": 170, "stop_confirmed": true}

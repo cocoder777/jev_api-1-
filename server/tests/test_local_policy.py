@@ -14,7 +14,7 @@ from tools.waypoint_geometry import KNOT_MPS
 
 class LocalPolicyTests(unittest.TestCase):
     def packet(self):
-        packet = scenario('turn')
+        packet = scenario('crossing_km')
         packet['situation'] = [decode_situation_packet(build_situation_packet(telemetry(0, 0, 0, None)))]
         return packet
 

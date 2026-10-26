@@ -75,6 +75,7 @@ class ServiceConfigTests(unittest.TestCase):
                     self.assertEqual(policy.endpoint, "http://127.0.0.1:18028/v1/systemone")
                     self.assertEqual(policy.timeout, 120.)
                     self.assertEqual(policy.max_turn_rate_deg_s, 45.)
+                    self.assertEqual(policy.max_speed, 50.)
                 else:
                     self.assertEqual(policy.endpoint, "https://configured.example/v1/systemone")
                     self.assertEqual(os.environ["JEV_API_KEY"], "test-only-key")

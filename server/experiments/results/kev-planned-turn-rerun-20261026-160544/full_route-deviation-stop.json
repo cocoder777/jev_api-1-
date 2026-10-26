@@ -1,0 +1,9 @@
+{
+  "case": "full_route",
+  "waypoint_index": 1,
+  "cross_track_m": 802.4709689452947,
+  "distance_growth_m": 663.5999999999999,
+  "goal_decisions": 177,
+  "actual_course_deg": 69,
+  "heading_error_deg": -147.96
+}

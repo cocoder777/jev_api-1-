@@ -1,0 +1,96 @@
+old_exact 81 {'choice': 'heading_02', 'course_deg': 60.0, 'turn_deg': -33.0, 'heading_error_before_deg': 148.82, 'heading_error_after_deg': 115.82, 'kind': 'improves_heading', 'confidence': 0.041}
+old_exact 82 {'choice': 'heading_02', 'course_deg': 27.0, 'turn_deg': -33.0, 'heading_error_before_deg': 116.12, 'heading_error_after_deg': 83.12, 'kind': 'improves_heading', 'confidence': 0.0794}
+old_exact 83 {'choice': 'heading_01', 'course_deg': 348.0, 'turn_deg': -39.0, 'heading_error_before_deg': 83.5, 'heading_error_after_deg': 44.5, 'kind': 'improves_heading', 'confidence': 0.0887}
+old_exact 84 {'choice': 'heading_01', 'course_deg': 309.0, 'turn_deg': -39.0, 'heading_error_before_deg': 44.83, 'heading_error_after_deg': 5.83, 'kind': 'improves_heading', 'confidence': 0.0704}
+old_exact 85 {'choice': 'heading_06', 'course_deg': 300.0, 'turn_deg': -9.0, 'heading_error_before_deg': 5.98, 'heading_error_after_deg': 3.02, 'kind': 'improves_heading', 'confidence': 0.1652}
+old_exact 86 {'choice': 'heading_08', 'course_deg': 303.0, 'turn_deg': 3.0, 'heading_error_before_deg': 3.04, 'heading_error_after_deg': 0.04, 'kind': 'improves_heading', 'confidence': 0.1752}
+latest {'straight': 9, 'improves_heading': 3}
+old_instructions {'improves_heading': 3, 'straight': 9}
+old_option_ids {'straight': 9, 'improves_heading': 3}
+relative_coordinate_fields {'straight': 8, 'improves_heading': 4}
+no_next_direction {'straight': 10, 'improves_heading': 2}
+no_recent_history {'straight': 12}
+absolute_turn_field {'improves_heading': 10, 'straight': 2}
+no_redundant_option_speed {'improves_heading': 3, 'straight': 9}
+legacy_presentation {'improves_heading': 12}
+{
+  "old_exact": {
+    "n": 6,
+    "choices": {
+      "improves_heading": 6
+    },
+    "mean_heading_error_after_deg": 42.055
+  },
+  "latest": {
+    "n": 12,
+    "choices": {
+      "straight": 9,
+      "improves_heading": 3
+    },
+    "mean_heading_error_after_deg": 138.61833333333334
+  },
+  "old_instructions": {
+    "n": 12,
+    "choices": {
+      "improves_heading": 3,
+      "straight": 9
+    },
+    "mean_heading_error_after_deg": 141.11833333333334
+  },
+  "old_option_ids": {
+    "n": 12,
+    "choices": {
+      "straight": 9,
+      "improves_heading": 3
+    },
+    "mean_heading_error_after_deg": 138.61833333333334
+  },
+  "relative_coordinate_fields": {
+    "n": 12,
+    "choices": {
+      "straight": 8,
+      "improves_heading": 4
+    },
+    "mean_heading_error_after_deg": 135.86833333333334
+  },
+  "no_next_direction": {
+    "n": 12,
+    "choices": {
+      "straight": 10,
+      "improves_heading": 2
+    },
+    "mean_heading_error_after_deg": 141.86833333333334
+  },
+  "no_recent_history": {
+    "n": 12,
+    "choices": {
+      "straight": 12
+    },
+    "mean_heading_error_after_deg": 143.36833333333334
+  },
+  "absolute_turn_field": {
+    "n": 12,
+    "choices": {
+      "improves_heading": 10,
+      "straight": 2
+    },
+    "mean_heading_error_after_deg": 109.36833333333334
+  },
+  "no_redundant_option_speed": {
+    "n": 12,
+    "choices": {
+      "improves_heading": 3,
+      "straight": 9
+    },
+    "mean_heading_error_after_deg": 141.11833333333334
+  },
+  "legacy_presentation": {
+    "n": 12,
+    "choices": {
+      "improves_heading": 12
+    },
+    "mean_heading_error_after_deg": 98.36833333333334
+  },
+  "old_replay_exact_matches": 6,
+  "latest_replay_exact_matches": 12
+}

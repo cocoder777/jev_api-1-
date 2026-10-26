@@ -9,7 +9,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
 from server.decision_service import build_json_packet, build_situation_packet, decode_situation_packet, service, decode_speed_course_packet, ALGORITHM_TASK_ID
 from server.experiments.simulate import scenario, telemetry
 from server.policies.factory import create_policy
-from server.policies.kev_policy import KEV_SPEED_KNOTS, KevPolicy
+from server.policies.kev_policy import KEV_SPEEDS_KNOTS, KevPolicy
 from tools.waypoint_geometry import KNOT_MPS
 from server.policies.turning import reachable_courses
 from tools.navigation_motion import predict_ground_motion
@@ -19,44 +19,54 @@ def answer(choice):
     return {'answers':{'action':dict(type='choice',choice=choice)}}
 
 
+def fastest_straight(payload):
+    speed = max(payload['state']['speeds_knots'])
+    return answer(f'speed_{speed:g}__heading_07')
+
+
 class KevTests(unittest.TestCase):
     def packet(self):
         packet=scenario('crossing_km')
         packet['situation']=[telemetry(0,0,0,None)]
         return packet
 
-    def test_fixed_speed_and_all_sixteen_absolute_courses_decode(self):
+    def test_all_five_speeds_and_sixteen_courses_decode(self):
         packet=self.packet();client=Mock()
-        policy=KevPolicy(client=client,max_speed_knots=3.,initial_course_deg=90.)
-        for i,course in enumerate(reachable_courses(90.,1.,45.)):
-            name=f'heading_{i:02d}'
-            client.return_value=answer(name)
-            self.assertEqual(policy(packet),(KEV_SPEED_KNOTS,course))
+        policy=KevPolicy(client=client,initial_course_deg=90.)
+        for speed in KEV_SPEEDS_KNOTS:
+            heading = 90. if speed == 50. else 70.
+            packet['situation'][0]['targetCourse'] = heading
+            for i,course in enumerate(reachable_courses(heading,1.,45.)):
+                client.return_value=answer(f'speed_{speed:g}__heading_{i:02d}')
+                self.assertEqual(policy(packet),(speed,course))
         request=client.call_args.args[0]
         criteria=request['questions']['action']['criteria']
         self.assertEqual(len(criteria),16)
+        self.assertTrue(all(v['turn_deg'] == abs(v['signed_turn_deg']) for v in criteria.values()))
+        self.assertTrue(all(list(v)[-1] == 'turn_deg' for v in criteria.values()))
         self.assertEqual({v['absolute_course_deg'] for v in criteria.values()}, set(reachable_courses(90.,1.,45.)))
-        self.assertEqual(request['state']['command_speed_knots'],KEV_SPEED_KNOTS)
+        self.assertEqual(request['state']['speeds_knots'],[50.])
         self.assertEqual(request['state']['max_turn_deg'],45.)
-        self.assertIn(f'at {KEV_SPEED_KNOTS:g} knots', request['state']['task'])
+        self.assertEqual(KEV_SPEEDS_KNOTS, (10., 20., 30., 40., 50.))
+        self.assertNotIn('forecast_note', request['state'])
         self.assertAlmostEqual(request['state']['target_bearing_deg'],90.)
         self.assertNotIn('sign',request['state'])
         self.assertNotIn('threatLevel',request['state'])
 
     def test_binary_control_preserves_half_degree_course_and_units(self):
         packet=self.packet();state=packet.pop('situation')
-        policy=KevPolicy(client=Mock(return_value=answer('heading_01')),initial_course_deg=90.,max_turn_rate_deg_s=5.)
+        policy=KevPolicy(client=Mock(return_value=answer('speed_50__heading_01')),initial_course_deg=90.,max_turn_rate_deg_s=5.)
         decoded=decode_speed_course_packet(service(build_json_packet(packet,ALGORITHM_TASK_ID),policy,tuple(state)))
-        self.assertEqual(decoded['speed'],KEV_SPEED_KNOTS)
+        self.assertEqual(decoded['speed'],50.)
         self.assertEqual(decoded['course'],85.67)
         packet['situation']=state
-        policy=KevPolicy(client=Mock(return_value=answer('heading_15')),speed_unit='mps',initial_course_deg=90.,max_turn_rate_deg_s=5.)
+        policy=KevPolicy(client=Mock(return_value=answer('speed_50__heading_15')),speed_unit='mps',initial_course_deg=90.,max_turn_rate_deg_s=5.)
         speed,course=policy(packet)
-        self.assertAlmostEqual(speed,KEV_SPEED_KNOTS*KNOT_MPS)
+        self.assertAlmostEqual(speed,50.*KNOT_MPS)
         self.assertEqual(course,95.)
 
     def test_recent_history_is_bounded_and_reset_for_new_task(self):
-        client=Mock(return_value=answer('heading_07'))
+        client=Mock(return_value=answer('speed_50__heading_07'))
         policy=KevPolicy(client=client,initial_course_deg=90.);packet=self.packet()
         for _ in range(7):policy(packet)
         self.assertEqual(len(client.call_args.args[0]['state']['recent_decisions']),4)
@@ -64,7 +74,7 @@ class KevTests(unittest.TestCase):
         self.assertEqual(client.call_args.args[0]['state']['recent_decisions'],[])
 
     def test_invalid_or_unavailable_model_does_not_substitute_course(self):
-        for response in ({'answers':{}},answer('heading_99')):
+        for response in ({'answers':{}},answer('speed_50__heading_99')):
             with self.assertRaises(ValueError):KevPolicy(client=Mock(return_value=response),initial_course_deg=90.)(self.packet())
         with self.assertRaisesRegex(RuntimeError,'unavailable'):
             KevPolicy(client=Mock(side_effect=RuntimeError('unavailable')),initial_course_deg=90.)(self.packet())
@@ -80,10 +90,10 @@ class KevTests(unittest.TestCase):
         state = packet.pop('situation')
         state[0]['targetSpeed'] = 15.
         state[0]['targetCourse'] = 90.
-        with patch.object(KevPolicy, '_call', return_value=answer('heading_07')) as request:
+        with patch.object(KevPolicy, '_call', return_value=answer('speed_50__heading_07')) as request:
             result = service(build_json_packet(packet, ALGORITHM_TASK_ID), situation=tuple(state))
         action = decode_speed_course_packet(result)
-        self.assertEqual(action['speed'], KEV_SPEED_KNOTS)
+        self.assertEqual(action['speed'], 50.)
         self.assertEqual(action['course'], 90.)
         self.assertEqual(request.call_args.args[0]['model'], 'kev-latest')
 
@@ -97,8 +107,19 @@ class KevTests(unittest.TestCase):
         self.assertEqual(result['reached_waypoints'],1)
         self.assertEqual(save.call_args.args[0][-1]['command']['speed'], 0.)
 
+    def test_simulator_arrival_uses_one_hundred_metres_instead_of_turning_radius(self):
+        from server.experiments.simulate import direct, ROUTES, SCENARIOS
+        for distance, turning_radius, completed in ((99., 1., True), (101., 200., False)):
+            with self.subTest(distance=distance, turning_radius=turning_radius):
+                policy=Mock(return_value=(50.,90.));policy.current_route.return_value=0
+                with patch.dict(ROUTES, {'arrival_test':[(0,0),(distance,0)]}), \
+                        patch.dict(SCENARIOS, {'arrival_test':dict(radius_m=turning_radius,speed_knots=50.)}), \
+                        patch('server.experiments.simulate.save'), patch('server.experiments.simulate.plot_map'):
+                    result=direct(policy,'arrival_test',SimpleNamespace(steps=1,dt=1.,backend='kev',max_turn_rate_deg_s=45.),Path('/tmp'))
+                self.assertEqual(result['completed'],completed)
+
     def test_model_payload_rounds_every_float_including_candidates_and_history(self):
-        client=Mock(return_value=answer('heading_01'))
+        client=Mock(return_value=answer('speed_50__heading_01'))
         policy=KevPolicy(client=client,duration=.123456,speed_transition=.456789)
         packet=self.packet()
         packet['situation'][0].update(targetSpeed=12.345678,targetCourse=91.234567)
@@ -141,18 +162,18 @@ class KevTests(unittest.TestCase):
                 state = packet.pop('situation')[0]
                 state.update(targetSpeed=0., targetCourse=course)
                 state = decode_situation_packet(build_situation_packet(state))
-                client = Mock(return_value=answer('heading_07'))
+                client = Mock(side_effect=fastest_straight)
                 policy = KevPolicy(client=client)
                 result = service(build_json_packet(packet, ALGORITHM_TASK_ID), policy, (state,))
                 action = decode_speed_course_packet(result)
-                self.assertEqual(action['speed'], KEV_SPEED_KNOTS)
+                self.assertEqual(action['speed'], max(client.call_args.args[0]['state']['speeds_knots']))
                 self.assertEqual(action['course'], course)
                 payload = client.call_args.args[0]
                 self.assertEqual(payload['state']['actual_speed_knots'], 0.)
                 self.assertEqual(payload['state']['actual_course_deg'], course)
 
     def test_stopped_boat_uses_latest_situation_instead_of_configured_course(self):
-        client = Mock(return_value=answer('heading_07'))
+        client = Mock(side_effect=fastest_straight)
         policy = KevPolicy(client=client, initial_course_deg=180.)
         packet = self.packet()
         state = packet['situation'][0]
@@ -161,7 +182,7 @@ class KevTests(unittest.TestCase):
         state.update(targetSpeed=0., targetCourse=230., longitude=120.51, latitude=30.21)
         speed, course = policy(packet)
         payload = client.call_args.args[0]
-        self.assertEqual(speed, KEV_SPEED_KNOTS)
+        self.assertEqual(speed, max(payload['state']['speeds_knots']))
         self.assertEqual(course, 230.)
         self.assertEqual(payload['state']['actual_course_deg'], 230.)
         self.assertEqual(policy.observation(packet)['boat']['longitude'], 120.51)
@@ -176,13 +197,13 @@ class KevTests(unittest.TestCase):
                     KevPolicy(client=Mock(), initial_course_deg=90.).observation(packet)
 
     def test_control_interval_scales_default_turn_range(self):
-        client = Mock(return_value=answer('heading_00'))
+        client = Mock(return_value=answer('speed_50__heading_00'))
         policy = KevPolicy(client=client, initial_course_deg=90., duration=.2)
         _, course = policy(self.packet())
         self.assertEqual(course, 81.)
         payload = client.call_args.args[0]
         self.assertEqual(payload['state']['max_turn_deg'], 9.)
-        self.assertEqual(payload['questions']['action']['criteria']['heading_15']['absolute_course_deg'], 99.)
+        self.assertEqual(payload['questions']['action']['criteria']['speed_50__heading_15']['absolute_course_deg'], 99.)
 
     def test_motion_and_simulation_obey_the_same_rate_limit(self):
         speed=15*KNOT_MPS
@@ -197,7 +218,7 @@ class KevTests(unittest.TestCase):
         self.assertAlmostEqual(x,motion['endpoint'][0]);self.assertAlmostEqual(y,motion['endpoint'][1])
 
     def test_transition_fields_removed_and_optional_prompt_fields_do_not_drive_history(self):
-        client=Mock(return_value=answer('heading_07'))
+        client=Mock(return_value=answer('speed_50__heading_07'))
         policy=KevPolicy(client=client,initial_course_deg=90.)
         original=policy._request
         def stripped(obs):
@@ -213,7 +234,7 @@ class KevTests(unittest.TestCase):
         self.assertEqual(len(policy.local.history),1)
 
     def test_relative_bearing_and_signed_turn_resolve_side_rear_target(self):
-        client=Mock(return_value=answer('heading_00'))
+        client=Mock(return_value=answer('speed_10__heading_00'))
         policy=KevPolicy(client=client,initial_course_deg=90.)
         packet=self.packet();packet['params']['currentRoute']=1
         packet['situation']=[telemetry(640,0,15*KNOT_MPS,90.)]
@@ -221,7 +242,7 @@ class KevTests(unittest.TestCase):
         payload=client.call_args.args[0]
         self.assertLess(payload['state']['target_relative_bearing_deg'],-90.)
         self.assertEqual(payload['state']['target_turn_side'],'left')
-        self.assertEqual(payload['questions']['action']['criteria']['heading_00']['maneuver'],'left')
-        self.assertEqual(payload['questions']['action']['criteria']['heading_07']['maneuver'],'straight')
-        self.assertEqual(payload['questions']['action']['criteria']['heading_00']['signed_turn_deg'],-45.)
-        self.assertEqual(payload['questions']['action']['criteria']['heading_15']['signed_turn_deg'],45.)
+        self.assertEqual(payload['questions']['action']['criteria']['speed_10__heading_00']['maneuver'],'left')
+        self.assertEqual(payload['questions']['action']['criteria']['speed_10__heading_07']['maneuver'],'straight')
+        self.assertEqual(payload['questions']['action']['criteria']['speed_10__heading_00']['signed_turn_deg'],-45.)
+        self.assertEqual(payload['questions']['action']['criteria']['speed_10__heading_15']['signed_turn_deg'],45.)

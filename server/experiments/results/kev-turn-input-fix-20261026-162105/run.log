@@ -1,0 +1,7 @@
+START full_route initial_completed= 0 initial_position= (-640.0, 0.0) initial_heading= 90.0
+full_route: 100 steps, 2/10 waypoints, distance=817.8m
+full_route: 200 steps, 3/10 waypoints, distance=352.6m
+full_route: 300 steps, 5/10 waypoints, distance=1063.2m
+full_route: 400 steps, 6/10 waypoints, distance=451.5m
+full_route: 500 steps, 8/10 waypoints, distance=393.0m
+END full_route {"reason": "completed", "steps": 582, "reached_waypoints": 10, "total_waypoints": 10, "recovery_decisions": 7, "stop_confirmed": true}

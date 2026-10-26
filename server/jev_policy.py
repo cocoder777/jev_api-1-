@@ -12,7 +12,7 @@ else:
 
 class JevPolicy(WaypointPolicy):
     def __init__(self, model="jev-latest", endpoint="https://api.typesafe.ai/v1/systemone",
-                 speed_unit="knots", max_speed_knots=30.0, duration=1.0,
+                 speed_unit="knots", max_speed_knots=50.0, duration=1.0,
                  speed_transition=0.5, course_transition=0.5, api_timeout=10.0):
         super().__init__(speed_unit, max_speed_knots, duration, speed_transition, course_transition)
         if not math.isfinite(api_timeout) or api_timeout <= 0:

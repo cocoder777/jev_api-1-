@@ -27,37 +27,49 @@ def state():
 
 
 class WaypointContractTests(unittest.TestCase):
-    def test_zero_radius_uses_the_same_arrival_tolerance_in_session_and_all_backends(self):
+    def test_turning_radius_does_not_change_arrival_tolerance_in_any_backend(self):
         from server.jev_policy import JevPolicy
         from server.policies.julia_policy import JuliaPolicy
 
-        packet = task()
-        for point in packet['params']['planWaypointList']:
-            point['routeRadius'] = 0.
-        session = ds.ControlSession(packet, ('127.0.0.1', 7612))
-        policies = [KevPolicy(client=Mock()), JevPolicy(), JuliaPolicy('.', engine=Mock())]
-        # About 5.6 metres from each point: no exact coordinate match required.
-        for index in range(2):
-            own = dict(state(), longitude=.01 * (index + 1) - .00005)
-            session.update_situation(own)
-            self.assertEqual(session.current_route, index + 1)
-            for policy in policies:
-                observation = policy.observation(dict(packet, situation=(own,)))
-                self.assertEqual(policy.current_route(), index + 1)
-                self.assertEqual(observation['task']['arrival_radius_m'], 20.)
-        self.assertTrue(session.route_complete)
-        self.assertEqual(session.status_fields()[1]['completionRate'], 100.)
-        self.assertEqual([p['routeRadius'] for p in packet['params']['planWaypointList']], [0., 0.])
+        for radius in (None, 0., 1., 200.):
+            with self.subTest(turning_radius=radius):
+                packet = task()
+                for point in packet['params']['planWaypointList']:
+                    if radius is None:
+                        point.pop('routeRadius')
+                    else:
+                        point['routeRadius'] = radius
+                session = ds.ControlSession(packet, ('127.0.0.1', 7612))
+                policies = [KevPolicy(client=Mock()), JevPolicy(), JuliaPolicy('.', engine=Mock())]
+                for index in range(2):
+                    # About 111 m away: outside even for a 200 m turning radius.
+                    outside = dict(state(), longitude=.01 * (index + 1) - .001)
+                    session.update_situation(outside)
+                    self.assertEqual(session.current_route, index)
+                    for policy in policies:
+                        observation = policy.observation(dict(packet, situation=(outside,)))
+                        self.assertEqual(policy.current_route(), index)
+                        self.assertEqual(observation['task']['arrival_radius_m'], 100.)
+                    # About 89 m away: inside even for a 1 m turning radius.
+                    own = dict(state(), longitude=.01 * (index + 1) - .0008)
+                    session.update_situation(own)
+                    self.assertEqual(session.current_route, index + 1)
+                    for policy in policies:
+                        policy.observation(dict(packet, situation=(own,)))
+                        self.assertEqual(policy.current_route(), index + 1)
+                self.assertTrue(session.route_complete)
+                self.assertEqual(session.status_fields()[1]['completionRate'], 100.)
+                for point in packet['params']['planWaypointList']:
+                    self.assertEqual(point.get('routeRadius'), radius)
 
-    def test_invalid_radii_are_rejected_by_session_and_policy(self):
+    def test_unused_turning_radius_does_not_reject_navigation_tasks(self):
         for radius in (-1, float('nan'), float('inf'), True, None, '0'):
             with self.subTest(radius=radius):
                 packet = task()
                 packet['params']['planWaypointList'][1]['routeRadius'] = radius
-                with self.assertRaisesRegex(ValueError, 'routeRadius'):
-                    ds.ControlSession(packet, ('127.0.0.1', 7612))
-                with self.assertRaisesRegex(ValueError, 'routeRadius'):
-                    KevPolicy(client=Mock()).observation(dict(packet, situation=(state(),)))
+                ds.ControlSession(packet, ('127.0.0.1', 7612))
+                observation = KevPolicy(client=Mock()).observation(dict(packet, situation=(state(),)))
+                self.assertEqual(observation['task']['arrival_radius_m'], 100.)
 
     def test_first_point_and_completed_count_are_not_confused_with_origin(self):
         for completed in (0, 1):
@@ -69,7 +81,7 @@ class WaypointContractTests(unittest.TestCase):
                 self.assertEqual(policy.current_route(), completed)
 
     def test_single_waypoint_stops_without_another_model_call_and_latches_arrival(self):
-        client = Mock(return_value={'answers': {'action': {'type': 'choice', 'choice': 'heading_07'}}})
+        client = Mock(return_value={'answers': {'action': {'type': 'choice', 'choice': 'speed_50__heading_07'}}})
         policy = KevPolicy(client=client)
         packet = dict(task(count=1), situation=(state(),))
         self.assertGreater(policy(packet)[0], 0.)
@@ -112,6 +124,14 @@ class WaypointContractTests(unittest.TestCase):
 
 
 class TaskControlTests(unittest.TestCase):
+    def test_navigation_failure_sends_zero_speed_and_reports_specific_error(self):
+        from server.policies.progress import NavigationStalled
+        status = self.run_task(Mock(side_effect=NavigationStalled('恢复失败')))
+        self.assertEqual(status['status'], 3)
+        self.assertEqual(status['params']['errorCode'], 'NAVIGATION_NO_PROGRESS')
+        self.assertTrue(self.commands)
+        self.assertTrue(all(command['speed'] == 0. for _, command in self.commands))
+
     def run_task(self, policy, *, count=2, completed=0, on_control=None,
                  on_get=None, hold=.5, send_error=False, status_errors=0):
         self.own = state()

@@ -1,0 +1,48 @@
+crossing_km: 100 steps, 0/10 waypoints, distance=380.0m
+crossing_km: 200 steps, 0/10 waypoints, distance=122.9m
+crossing_km: 300 steps, 1/10 waypoints, distance=823.9m
+crossing_km: 400 steps, 1/10 waypoints, distance=566.8m
+crossing_km: 500 steps, 1/10 waypoints, distance=309.6m
+Traceback (most recent call last):
+  File "/home/epic/jev_api(1)/server/experiments/results/kev-four-speeds-2000-20261026-152427/run.py", line 14, in <module>
+    result=ft.run_task('crossing_km',OUTPUT,config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/epic/jev_api(1)/server/experiments/field_tasks.py", line 119, in run_task
+    command = decode_speed_course_packet(service(
+                                         ^^^^^^^^
+  File "/home/epic/jev_api(1)/server/decision_service.py", line 798, in service
+    action = policy(policy_input)
+             ^^^^^^^^^^^^^^^^^^^^
+  File "/home/epic/jev_api(1)/server/policies/kev_policy.py", line 166, in __call__
+    result = self._call(payload)
+             ^^^^^^^^^^^^^^^^^^^
+  File "/home/epic/jev_api(1)/server/policies/kev_policy.py", line 134, in _call
+    with self.local.opener.open(request, timeout=self.timeout) as response:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 515, in open
+    response = self._open(req, data)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 532, in _open
+    result = self._call_chain(self.handle_open, protocol, protocol +
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 492, in _call_chain
+    result = func(*args)
+             ^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 1373, in http_open
+    return self.do_open(http.client.HTTPConnection, req)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 1348, in do_open
+    r = h.getresponse()
+        ^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/http/client.py", line 1457, in getresponse
+    response.begin()
+  File "/usr/lib/python3.12/http/client.py", line 336, in begin
+    version, status, reason = self._read_status()
+                              ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/http/client.py", line 297, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/socket.py", line 707, in readinto
+    return self._sock.recv_into(b)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

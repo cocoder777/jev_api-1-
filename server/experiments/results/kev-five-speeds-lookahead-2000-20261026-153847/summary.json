@@ -1,0 +1,58 @@
+{
+  "task": "crossing_km",
+  "task_id": "crossing_km",
+  "passed": false,
+  "completed": false,
+  "reason": "navigation_no_progress",
+  "error": "航点1低速恢复连续20轮无改善；距离1139.0米，航向误差139.0度",
+  "steps": 64,
+  "reached_waypoints": 1,
+  "total_waypoints": 10,
+  "simulated_seconds": 63.0,
+  "final_speed_knots": 0.0,
+  "max_speed_knots": 50.0,
+  "max_actual_turn_rate_deg_s": 39.0,
+  "available_speeds_knots": [
+    10.0,
+    20.0,
+    30.0,
+    40.0,
+    50.0
+  ],
+  "recovery_decisions": 25,
+  "stop_confirmed": true,
+  "arrival_radius_m": 100.0,
+  "speed_unit": "knots",
+  "waypoint_speed_limits_knots": [
+    20,
+    20,
+    20,
+    20,
+    20,
+    20,
+    20,
+    20,
+    20,
+    20
+  ],
+  "speed_violation_count": 0,
+  "violations": [],
+  "arrivals": [
+    {
+      "index": 0,
+      "time_s": 30.0,
+      "speed_knots": 10.0
+    }
+  ],
+  "config": {
+    "steps": 2000,
+    "dt": 1.0,
+    "start_offset_m": 640.0,
+    "initial_course_deg": 90.0,
+    "max_turn_rate_deg_s": 45.0,
+    "kev_endpoint": "http://127.0.0.1:18028/v1/systemone",
+    "kev_timeout": 120.0
+  },
+  "elapsed_s": 13.43592405200252,
+  "limitations": "Idealized motion; simulation pauses during inference. No live UDP timing or measured hull dynamics."
+}

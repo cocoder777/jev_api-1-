@@ -1,0 +1,66 @@
+{
+  "task": "p2_p3_probe",
+  "task_id": "crossing-km-p2_p3_probe",
+  "passed": false,
+  "completed": false,
+  "reason": "navigation_no_progress",
+  "error": "Diagnostic-only deviation limit: cross-track 800.4m, distance growth 753.7m",
+  "steps": 187,
+  "reached_waypoints": 2,
+  "total_waypoints": 10,
+  "simulated_seconds": 186.0,
+  "final_speed_knots": 0.0,
+  "max_speed_knots": 10.0,
+  "max_actual_turn_rate_deg_s": 0.6900675259623199,
+  "available_speeds_knots": [
+    10.0,
+    20.0,
+    30.0,
+    40.0,
+    50.0
+  ],
+  "recovery_decisions": 170,
+  "stop_confirmed": true,
+  "arrival_radius_m": 100.0,
+  "speed_unit": "knots",
+  "waypoint_speed_limits_knots": [
+    20,
+    20,
+    20,
+    20,
+    20,
+    20,
+    20,
+    20,
+    20,
+    20
+  ],
+  "speed_violation_count": 0,
+  "violations": [],
+  "arrivals": [
+    {
+      "index": 1,
+      "time_s": 10.0,
+      "speed_knots": 10.0
+    }
+  ],
+  "config": {
+    "steps": 2000,
+    "dt": 1.0,
+    "start_offset_m": 50.0,
+    "initial_course_deg": 303.6900675259623,
+    "initial_position_xy_m": [
+      -835.1924558500746,
+      556.7949705663489
+    ],
+    "max_turn_rate_deg_s": 45.0,
+    "kev_endpoint": "http://127.0.0.1:18028/v1/systemone",
+    "kev_timeout": 120.0
+  },
+  "elapsed_s": 39.254188111000985,
+  "limitations": "Idealized motion; simulation pauses during inference. No live UDP timing or measured hull dynamics.",
+  "initial_completed_waypoints": 1,
+  "diagnostic_recovery_limit": 10000,
+  "diagnostic_stop_cross_track_m": 800.0,
+  "diagnostic_stop_distance_growth_m": 1000.0
+}

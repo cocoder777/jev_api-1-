@@ -1,0 +1,9 @@
+{
+  "case": "p2_p3_probe",
+  "waypoint_index": 2,
+  "cross_track_m": 800.4448498796612,
+  "distance_growth_m": 753.69,
+  "goal_decisions": 176,
+  "actual_course_deg": 303,
+  "heading_error_deg": 155.71
+}

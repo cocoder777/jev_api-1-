@@ -8,7 +8,7 @@ from .waypoint_radius import waypoint_arrival_radius
 
 
 class WaypointPolicy:
-    def __init__(self, speed_unit="knots", max_speed_knots=30.0, duration=1.0,
+    def __init__(self, speed_unit="knots", max_speed_knots=50.0, duration=1.0,
                  speed_transition=0.5, course_transition=0.5):
         if speed_unit not in ("knots", "mps"):
             raise ValueError("speed_unit must be knots or mps")
@@ -41,7 +41,6 @@ class WaypointPolicy:
         if not waypoints or type(params.get("planWaypointNum")) is not int or params["planWaypointNum"] != len(waypoints):
             raise ValueError("Expected at least one ordered waypoint and a matching planWaypointNum")
         for point in waypoints:
-            waypoint_arrival_radius(point)
             if not all(math.isfinite(point[k]) for k in ("routeLon", "routeLat", "routeSpeed")):
                 raise ValueError("Invalid waypoint")
             if not -180 <= point["routeLon"] <= 180 or not -90 <= point["routeLat"] <= 90 or point["routeSpeed"] < 0:

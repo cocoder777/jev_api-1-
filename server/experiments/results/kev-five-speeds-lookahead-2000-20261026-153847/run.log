@@ -1,0 +1,1 @@
+{"passed": false, "completed": false, "reason": "navigation_no_progress", "steps": 64, "reached_waypoints": 1, "total_waypoints": 10, "speed_violation_count": 0, "recovery_decisions": 25, "stop_confirmed": true, "elapsed_s": 13.43592405200252}

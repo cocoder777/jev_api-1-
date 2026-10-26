@@ -1,0 +1,13 @@
+{
+  "task": "crossing_km",
+  "completed": false,
+  "passed": false,
+  "reason": "interrupted_for_speed_update",
+  "steps": 511,
+  "reached_waypoints": 1,
+  "total_waypoints": 10,
+  "recovery_decisions": 0,
+  "stop_confirmed": false,
+  "max_speed_knots": 20.0,
+  "max_actual_turn_rate_deg_s": 45.0
+}

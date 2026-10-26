@@ -15,6 +15,17 @@ def xy(lon_lat, origin):
     )
 
 
+class LocalFrame:
+    """Internal metre coordinates anchored at the first waypoint."""
+
+    def __init__(self, waypoints):
+        first = waypoints[0]
+        self.origin = (first['routeLon'], first['routeLat'])
+
+    def project(self, longitude, latitude):
+        return xy((longitude, latitude), self.origin)
+
+
 def circle_interval(a, b, center, radius):
     dx, dy = b[0] - a[0], b[1] - a[1]
     ox, oy = a[0] - center[0], a[1] - center[1]
@@ -34,10 +45,14 @@ def circle_interval(a, b, center, radius):
 class WaypointGeometry:
     def __init__(self, observation):
         task, boat = observation["task"], observation["boat"]
-        origin = (boat["longitude"], boat["latitude"])
-        self.waypoints = [
-            xy((p["routeLon"], p["routeLat"]), origin) for p in task["planWaypointList"]
-        ]
+        self.frame = LocalFrame(task['planWaypointList'])
+        self.boat_position = self.frame.project(boat['longitude'], boat['latitude'])
+        self.waypoint_positions = [self.frame.project(p['routeLon'], p['routeLat'])
+                                   for p in task['planWaypointList']]
+        # Forecast paths start at the boat. Translate the fixed-frame coordinates
+        # without changing geographic east/north axes or the external packet.
+        self.waypoints = [(x - self.boat_position[0], y - self.boat_position[1])
+                          for x, y in self.waypoint_positions]
         self.next_index = task["next_waypoint_index"]
         if not 0 <= self.next_index < len(self.waypoints):
             raise ValueError("Expected an active waypoint index in the supplied list")

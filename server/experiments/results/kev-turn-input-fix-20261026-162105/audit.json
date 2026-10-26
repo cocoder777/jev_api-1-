@@ -1,0 +1,144 @@
+{
+  "latest_arrivals": [
+    {
+      "index": 0,
+      "time_s": 31.0,
+      "speed_knots": 10.0
+    },
+    {
+      "index": 1,
+      "time_s": 83.0,
+      "speed_knots": 10.0
+    },
+    {
+      "index": 2,
+      "time_s": 138.0,
+      "speed_knots": 10.0
+    },
+    {
+      "index": 3,
+      "time_s": 220.0,
+      "speed_knots": 10.0
+    },
+    {
+      "index": 4,
+      "time_s": 281.0,
+      "speed_knots": 10.0
+    },
+    {
+      "index": 5,
+      "time_s": 346.0,
+      "speed_knots": 10.0
+    },
+    {
+      "index": 6,
+      "time_s": 423.0,
+      "speed_knots": 10.0
+    },
+    {
+      "index": 7,
+      "time_s": 466.0,
+      "speed_knots": 10.0
+    },
+    {
+      "index": 8,
+      "time_s": 521.0,
+      "speed_knots": 10.0
+    },
+    {
+      "index": 9,
+      "time_s": 580.0,
+      "speed_knots": 10.0
+    }
+  ],
+  "saved_baseline_legs": [
+    {
+      "target": "P1",
+      "samples": 78,
+      "max_distance_to_reference_leg_m": 11.024912149268157,
+      "maneuvers": {
+        "away_from_target": 1,
+        "toward_target": 40,
+        "straight": 37
+      }
+    },
+    {
+      "target": "P2",
+      "samples": 148,
+      "max_distance_to_reference_leg_m": 21.551895666633925,
+      "maneuvers": {
+        "straight": 139,
+        "toward_target": 9
+      }
+    },
+    {
+      "target": "P3",
+      "samples": 140,
+      "max_distance_to_reference_leg_m": 29.135230570089796,
+      "maneuvers": {
+        "toward_target": 53,
+        "straight": 86,
+        "away_from_target": 1
+      }
+    },
+    {
+      "target": "P4",
+      "samples": 199,
+      "max_distance_to_reference_leg_m": 27.688200008516084,
+      "maneuvers": {
+        "toward_target": 19,
+        "straight": 180
+      }
+    }
+  ],
+  "latest_legs": [
+    {
+      "target": "P1",
+      "samples": 31,
+      "max_distance_to_reference_leg_m": 25.436047779846028,
+      "maneuvers": {
+        "straight": 25,
+        "away_from_target": 1,
+        "toward_target": 5
+      }
+    },
+    {
+      "target": "P2",
+      "samples": 52,
+      "max_distance_to_reference_leg_m": 48.10594040858307,
+      "maneuvers": {
+        "toward_target": 8,
+        "straight": 44
+      }
+    },
+    {
+      "target": "P3",
+      "samples": 55,
+      "max_distance_to_reference_leg_m": 67.23959133195395,
+      "maneuvers": {
+        "toward_target": 5,
+        "straight": 50
+      }
+    },
+    {
+      "target": "P4",
+      "samples": 82,
+      "max_distance_to_reference_leg_m": 39.55959842795348,
+      "maneuvers": {
+        "toward_target": 5,
+        "straight": 77
+      }
+    }
+  ],
+  "selected_speeds_knots": {
+    "50.0": 370,
+    "10.0": 206,
+    "20.0": 4,
+    "0.0": 2
+  },
+  "candidate_counts": {
+    "16": 479,
+    "64": 5,
+    "32": 96
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "full_route": {
+    "samples": 360,
+    "arrivals": [
+      {
+        "index": 0,
+        "time_s": 30.0,
+        "speed_knots": 10.0
+      },
+      {
+        "index": 1,
+        "time_s": 183.0,
+        "speed_knots": 10.0
+      }
+    ],
+    "stop": {
+      "case": "full_route",
+      "waypoint_index": 2,
+      "cross_track_m": 803.5524366205374,
+      "distance_growth_m": 812.3,
+      "goal_decisions": 176,
+      "actual_course_deg": 297,
+      "heading_error_deg": 158.46
+    },
+    "p2_last_approach": {
+      "phase": "approach",
+      "entry_speed_knots": 10.0,
+      "speed_cap_knots": 10.0,
+      "next_waypoint_index": 2,
+      "next_waypoint_xy_m": [
+        160.0,
+        800.0
+      ],
+      "next_leg_bearing_deg": 81.87,
+      "next_turn_deg": 162.87,
+      "route_corner_deg": 138.18,
+      "approach_distance_m": 177.78,
+      "below_minimum_speed_limit": false
+    },
+    "p2_last_speed_knots": 10.0,
+    "p2_p3_moves": {
+      "toward_target": 2,
+      "straight": 173
+    },
+    "stop_confirmed": true
+  },
+  "p2_p3_probe": {
+    "samples": 187,
+    "arrivals": [
+      {
+        "index": 1,
+        "time_s": 10.0,
+        "speed_knots": 10.0
+      }
+    ],
+    "stop": {
+      "case": "p2_p3_probe",
+      "waypoint_index": 2,
+      "cross_track_m": 800.4448498796612,
+      "distance_growth_m": 753.69,
+      "goal_decisions": 176,
+      "actual_course_deg": 303,
+      "heading_error_deg": 155.71
+    },
+    "p2_last_approach": {
+      "phase": "approach",
+      "entry_speed_knots": 10.0,
+      "speed_cap_knots": 10.0,
+      "next_waypoint_index": 2,
+      "next_waypoint_xy_m": [
+        160.0,
+        800.0
+      ],
+      "next_leg_bearing_deg": 81.87,
+      "next_turn_deg": 138.87,
+      "route_corner_deg": 138.18,
+      "approach_distance_m": 175.04,
+      "below_minimum_speed_limit": false
+    },
+    "p2_last_speed_knots": 10.0,
+    "p2_p3_moves": {
+      "straight": 175
+    },
+    "stop_confirmed": true
+  }
+}
