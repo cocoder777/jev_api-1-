@@ -1,8 +1,7 @@
 """Kev integration: snapshot conversion and safe model-candidate filtering.
 
-Static visibility navigation remains responsible for routing. During dynamic
-avoidance stationary targets also constrain the longer forecast. This adapter
-never sends commands or imports backend/model code.
+Only moving or uncertain targets enter the dynamic forecast. Static checks
+are supplied by Kev as a separate candidate-builder callback.
 """
 from dataclasses import asdict, replace
 from tools.waypoint_geometry import KNOT_MPS
@@ -23,31 +22,34 @@ def moving_scene(records, own, *, own_id, origin_lon_lat, speed_unit, stationary
     """Keep unknown motion data; leave valid stationary records to static guard."""
     factor = KNOT_MPS if speed_unit == 'knots' else 1.
     latest = {r.get('platformId'): r for r in records}
-    selected, stationary = [], []
+    selected = []
     for pid, record in latest.items():
         if pid == own_id:
             continue
         speed = record.get('targetSpeed')
         lon, lat = record.get('longitude'), record.get('latitude')
-        if (finite(speed) and 0 <= speed*factor <= stationary_speed_knots*KNOT_MPS
+        if (finite(speed) and abs(speed)*factor <= stationary_speed_knots*KNOT_MPS
                 and finite(lon) and finite(lat) and abs(lon) <= 180 and abs(lat) < 90):
-            # Static guard deliberately retains last-known locations without
-            # expiry. Preserve that contract in the joint long-horizon check.
-            stationary.append(dict(record, _received_age_s=0.))
             continue
         selected.append(record)
     if not selected:
         return None
-    return scene_from_situation([*selected, *stationary, dict(own, platformId=own_id)],
+    return scene_from_situation([*selected, dict(own, platformId=own_id)],
         origin_lon_lat=origin_lon_lat, speed_unit=speed_unit, own_id=own_id)
 
 
-def check_models(scene, action, config, speed_transition_s):
+def wire_action(speed_knots, course, speed_unit='knots'):
+    """Assess the actual two-decimal speed/course sent on the control wire."""
+    speed = round(speed_knots*KNOT_MPS if speed_unit == 'mps' else speed_knots, 2)
+    return Action(speed if speed_unit == 'mps' else speed*KNOT_MPS, round(course, 2))
+
+
+def check_models(scene, action, config, speed_transition_s, *, horizon_s=None):
     """Require both bounded physical response and configured simulator response."""
     own, targets = scene
-    physical = assess_action(own, targets, action, config)
+    physical = assess_action(own, targets, action, config, horizon_s=horizon_s)
     configured = assess_trajectory(forecast(own, action, config,
-        speed_transition_time_s=speed_transition_s), targets, config)
+        speed_transition_time_s=speed_transition_s, horizon_s=horizon_s), targets, config)
     if physical.safe != configured.safe:
         return configured if not configured.safe else physical
     return min((physical, configured), key=lambda c: (
@@ -55,13 +57,16 @@ def check_models(scene, action, config, speed_transition_s):
 
 
 class KevDynamicAvoidance:
-    def __init__(self, config, speed_transition_s):
+    def __init__(self, config, speed_transition_s, speed_unit='knots'):
         self.config = config
         self.speed_transition_s = speed_transition_s
-        self.planner = DynamicAvoidancePlanner(config)
+        self.speed_unit = speed_unit
+        self.action_config = replace(config,horizon_s=config.action_horizon_s)
+        self.planner = DynamicAvoidancePlanner(self.action_config)
+        self.last_warning = None
 
     def needs_avoidance(self, scene, desired):
-        return not check_models(scene, desired, self.config, self.speed_transition_s).safe
+        return not check_models(scene, desired, self.action_config, self.speed_transition_s).safe
 
     def extra_speeds(self, speeds):
         """Use wire-representable knots, including speeds below Kev's 10 knots."""
@@ -69,26 +74,59 @@ class KevDynamicAvoidance:
         return sorted(set(speeds) | {min(cap, 2.5), min(cap, 5.)}
                       | {round(cap*f, 2) for f in (0., .25, .5, .75)})
 
-    def filter(self, scene, criteria, desired):
+    def filter(self, scene, criteria, *, expand):
+        """Preserve an all-safe baseline; expand only when the desired action is unsafe.
+
+        expand(speeds_knots) must return candidates that passed the original
+        static checks, within the baseline speed cap and reachable courses.
+        """
         own, targets = scene
-        # Check the exact values that the model and wire will use, not the
-        # unrounded internal speed/course that generated those values.
-        actions = {key: Action(round(item['speed_knots'], 2)*KNOT_MPS,
-                               round(item['absolute_course_deg'], 2))
-                   for key, item in criteria.items()}
-        checks = {key: check_models(scene, action, self.config, self.speed_transition_s)
-                  for key, action in actions.items()}
+        def actions_for(items):
+            return {key: wire_action(item['speed_knots'], item['absolute_course_deg'], self.speed_unit)
+                    for key, item in items.items()}
+        actions = actions_for(criteria)
+        preferred = min(criteria, key=lambda key: (criteria[key]['target_heading_error_deg'],
+                                                  -criteria[key]['speed_knots']))
+        desired = actions[preferred]
+        warning=check_models(scene,desired,self.config,self.speed_transition_s,
+                             horizon_s=self.config.warning_horizon_s)
+        warning_targets=sorted({r.target_id for r in warning.risks if not r.safe}
+                               | set(warning.uncertain_target_ids))
+        self.last_warning=(dict(warning_only=True,warning_horizon_s=self.config.warning_horizon_s,
+            action_horizon_s=self.config.action_horizon_s,threat_ids=warning_targets,
+            assessment=asdict(warning)) if warning_targets else None)
+        cache = {}
+        def evaluate(action):
+            if action not in cache:
+                cache[action] = check_models(scene, action, self.action_config, self.speed_transition_s)
+            return cache[action]
+        checks = {key: evaluate(action) for key, action in actions.items()}
+        if all(check.safe for check in checks.values()):
+            self.planner.reset()
+            return criteria, None
+        desired_check = checks[preferred]
+        threats = {r.target_id for check in checks.values() for r in check.risks if not r.safe}
+        threats.update(t for check in checks.values() for t in check.uncertain_target_ids)
+        if not desired_check.safe:
+            cap = max(item['speed_knots'] for item in criteria.values())
+            criteria = expand(self.extra_speeds([cap]))
+            if any(item['speed_knots'] > cap+1e-9 for item in criteria.values()):
+                raise ValueError('dynamic expansion exceeded the static speed cap')
+            actions = actions_for(criteria)
+            checks = {key: evaluate(action) for key, action in actions.items()}
         admissible = [action for key, action in actions.items() if checks[key].safe]
         result = self.planner.plan(own, targets, desired, candidates=admissible)
-        desired_check = check_models(scene, desired, self.config, self.speed_transition_s)
         if result.action is None:
-            threats = tuple(sorted({r.target_id for r in desired_check.risks if not r.safe}
-                                   | set(desired_check.uncertain_target_ids)))
-            result = replace(result, assessment=desired_check, threat_ids=threats,
+            result = replace(result, assessment=desired_check, threat_ids=tuple(sorted(threats)),
                 status='insufficient_data' if desired_check.uncertain_target_ids else 'blocked')
+        else:
+            result = replace(result, assessment=evaluate(result.action))
         details = asdict(result)
         details['targets'] = len(targets)
-        details['horizon_s'] = self.config.horizon_s
+        details['horizon_s'] = self.config.action_horizon_s
+        details['action_horizon_s'] = self.config.action_horizon_s
+        details['warning_horizon_s'] = self.config.warning_horizon_s
+        details['threat_ids'] = sorted(threats)
         if result.action is None:
             raise DynamicAvoidanceHold(details)
         safe = {key: item for key, item in criteria.items() if checks[key].safe}
@@ -128,12 +166,14 @@ class KevDynamicAvoidance:
         return safe, details
 
 
-def control_check(scene, speed_knots, course, config, speed_transition_s):
+def control_check(scene, speed_knots, course, config, speed_transition_s, speed_unit='knots'):
+    if scene is None:
+        return dict(safe=True,min_clearance_m=None,obstacle_id=None,avoidance_type='dynamic')
     own, targets = scene
-    check = check_models(scene, Action(round(speed_knots, 2)*KNOT_MPS,
-                                      round(course, 2)), config, speed_transition_s)
+    check = check_models(scene, wire_action(speed_knots, course, speed_unit), config, speed_transition_s,
+                         horizon_s=config.action_horizon_s)
     nearest = min(check.risks, key=lambda r: r.min_clearance_m, default=None)
     return dict(safe=check.safe, min_clearance_m=check.min_clearance_m,
                 obstacle_id=(check.uncertain_target_ids[0] if check.uncertain_target_ids
                              else nearest.target_id if nearest else None),
-                avoidance_type='dynamic', assessment=asdict(check))
+                avoidance_type='dynamic', action_horizon_s=config.action_horizon_s,assessment=asdict(check))

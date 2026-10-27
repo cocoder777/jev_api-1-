@@ -180,7 +180,7 @@ class StaticObstacleTests(unittest.TestCase):
         policy(p)
         decision=policy.local.last_decision
         self.assertIn('static_avoidance',decision['state'])
-        self.assertEqual(decision['state']['speeds_knots'],[50.])
+        self.assertEqual(decision['state']['speeds_knots'],[25.])
         self.assertTrue(all(v['obstacle_clearance_m']>=0 for v in decision['options'].values()))
         self.assertTrue(all(list(v)[-1]=='turn_deg' for v in decision['options'].values()))
         self.assertEqual(p,original)
@@ -200,7 +200,7 @@ class StaticObstacleTests(unittest.TestCase):
             for a,b in zip([geo.boat_position]+nav['path'],nav['path'])))
         p['situation'][0]=record(1010,850.,0.,speed=50.,course=90.)
         speed,course=policy(p)
-        self.assertEqual(speed,50.)
+        self.assertEqual(speed,25.)
         self.assertNotEqual(course,90.)
         self.assertTrue(policy.validate_control(p,p['situation'][0],p['situation'],speed,course)['safe'])
 
@@ -230,16 +230,30 @@ class StaticObstacleTests(unittest.TestCase):
         self.assertGreater(approach(50.,1.),approach(50.,45.))
 
     def test_static_safety_fallback_uses_fastest_feasible_speed(self):
-        p=packet(speed=50.,obstacle_x=500.,target=2500.)
+        p=packet(speed=50.,obstacle_x=350.,target=2500.)
         policy=KevPolicy(client=choose_heading)
         original=motion_clearance
         def reject_fast(*args):
-            if args[2] > 30.:
+            if args[2] > 20.:
                 return dict(safe=False,min_clearance_m=-1.,obstacle_id=4001)
             return original(*args)
         with patch('server.policies.kev_policy.motion_clearance',side_effect=reject_fast):
-            self.assertEqual(policy(p)[0],30.)
+            self.assertEqual(policy(p)[0],20.)
         self.assertEqual(policy.local.last_decision['state']['speed_profile']['phase'],'static_safety_fallback')
+
+    def test_near_obstacle_half_cap_does_not_repeat_halving_actual_speed(self):
+        policy=KevPolicy(client=choose_heading)
+        p=packet(speed=50.,obstacle_x=250.,target=2500.)
+        for actual in (50.,25.,20.):
+            p['situation'][0]['targetSpeed']=actual
+            self.assertEqual(policy(p)[0],25.)
+            self.assertEqual(policy.local.last_decision['state']['speed_profile']['phase'],'static_half_speed')
+
+    def test_half_cap_below_the_normal_minimum_speed_is_supported(self):
+        p=packet(speed=10.,obstacle_x=130.,target=2500.)
+        policy=KevPolicy(client=choose_heading,max_speed_knots=10.)
+        self.assertEqual(policy(p)[0],5.)
+        self.assertTrue(all(item['speed_knots']<=5. for item in policy.local.last_decision['options'].values()))
 
     def test_send_time_check_uses_new_obstacle_positions_after_inference(self):
         policy=KevPolicy();p=packet(speed=50.,obstacle_x=1000.)

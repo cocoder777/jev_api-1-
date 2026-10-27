@@ -76,13 +76,15 @@ def _circle_peak(motion, center):
     return peak
 
 
-def run_task(name, output, config=None, policy=None, *, plots=True, static_obstacles=(), detection_range_m=5000.):
+def run_task(name, output, config=None, policy=None, *, plots=True, static_obstacles=(), detection_range_m=5000., checkpoint_every=0):
     """Run a task; route completion and constraint compliance are separate results.
 
     Inference pauses simulated time. This evaluates the policy and idealized
     motion, not live UDP scheduling or identified vessel dynamics.
     """
     config = config or TestConfig()
+    if type(checkpoint_every) is not int or checkpoint_every < 0:
+        raise ValueError('checkpoint_every must be a nonnegative integer')
     task = load_task(name)
     session = ControlSession(task, ('127.0.0.1', 0), speed_unit='knots')
     waypoints = task['params']['planWaypointList']
@@ -104,6 +106,8 @@ def run_task(name, output, config=None, policy=None, *, plots=True, static_obsta
     x, y = config.initial_position_xy_m or (-config.start_offset_m, 0.)
     speed, course = 0., config.initial_course_deg
     rows, arrivals, violations = [], [], []
+    checkpoints = []
+    next_checkpoint = checkpoint_every
     completed = False
     reason = 'step_limit'
     error = None
@@ -140,7 +144,12 @@ def run_task(name, output, config=None, policy=None, *, plots=True, static_obsta
                 error, failed = str(exc), True
                 command, decision = dict(speed=0., course=course), None
             latency = time.perf_counter() - inference_started
-            turn = abs((command['course'] - course + 180) % 360 - 180)
+            # Situation packets encode course in whole degrees. Validate the
+            # candidate envelope against the same observation the policy saw;
+            # physical integration below still starts at the unrounded course
+            # and enforces the actual yaw-rate limit independently.
+            observed_course = state['targetCourse']
+            turn = abs((command['course'] - observed_course + 180) % 360 - 180)
             invalid = (not 0 <= command['speed'] <= 50. or not 0 <= command['course'] < 360
                        or (command['speed'] > 0 and turn > min(config.max_turn_rate_deg_s * config.dt, 179.99) + .011))
             if invalid:
@@ -148,12 +157,25 @@ def run_task(name, output, config=None, policy=None, *, plots=True, static_obsta
                 violations.append(dict(kind='command', step=step, command=command))
             row = dict(step=step, time_s=step * config.dt, x=x, y=y,
                        actual_speed_knots=speed / KNOT_MPS, actual_course_deg=course,
+                       observed_course_deg=observed_course,
                        completed_waypoints=session.current_route, target_index=target_index,
                        distance_m=distance, command=command, inference_s=latency, decision=decision,
                        error=error)
             rows.append(row)
             log.write(json.dumps(row, ensure_ascii=False, allow_nan=False) + '\n')
             log.flush()
+            while plots and checkpoint_every and session.current_route >= next_checkpoint:
+                checkpoint = dict(milestone=next_checkpoint, reached_waypoints=session.current_route,
+                    total_waypoints=len(points), time_s=step*config.dt,
+                    minimum_static_clearance_m=minimum_clearance if math.isfinite(minimum_clearance) else None,
+                    static_collision_count=sum(v['kind']=='static_collision' for v in violations),
+                    speed_violation_count=sum(v['kind']=='waypoint_speed' for v in violations))
+                image = _plot_checkpoint(rows, points, output, centers, collision_radius, checkpoint)
+                checkpoint['image'] = str(image)
+                checkpoints.append(checkpoint)
+                (output/'checkpoints.json').write_text(json.dumps(checkpoints, ensure_ascii=False, indent=2)+'\n')
+                print(f"{name}: checkpoint {next_checkpoint}/{len(points)} image={image}", flush=True)
+                next_checkpoint += checkpoint_every
             if invalid:
                 break
             if (session.route_complete or failed) and state['targetSpeed'] <= .1:
@@ -204,22 +226,84 @@ def run_task(name, output, config=None, policy=None, *, plots=True, static_obsta
                    static_collision_count=sum(v['kind'] == 'static_collision' for v in violations),
                    minimum_static_clearance_m=minimum_clearance if math.isfinite(minimum_clearance) else None,
                    violations=violations, arrivals=arrivals, config=asdict(config),
+                   checkpoints=checkpoints,
                    elapsed_s=time.perf_counter() - started,
                    limitations='Idealized motion; simulation pauses during inference. No live UDP timing or measured hull dynamics.')
     (output / 'summary.json').write_text(json.dumps(summary, ensure_ascii=False, indent=2) + '\n')
     if plots and rows:
         _plot(rows, points, waypoints, output, centers, collision_radius)
+        if checkpoint_every:
+            _plot_checkpoint(rows, points, output, centers, collision_radius,
+                dict(milestone=session.current_route, reached_waypoints=session.current_route,
+                     total_waypoints=len(points), time_s=rows[-1]['time_s'],
+                     minimum_static_clearance_m=summary['minimum_static_clearance_m'],
+                     static_collision_count=summary['static_collision_count'],
+                     speed_violation_count=summary['speed_violation_count'],
+                     final=True, passed=summary['passed']))
     return summary
 
 
-def test_task_one(output, config=None, policy=None, *, plots=True, static_obstacles=()):
+def test_task_one(output, config=None, policy=None, *, plots=True, static_obstacles=(), checkpoint_every=0):
     """Basic 12-waypoint field route."""
-    return run_task('task_one', output, config, policy, plots=plots, static_obstacles=static_obstacles)
+    return run_task('task_one', output, config, policy, plots=plots, static_obstacles=static_obstacles, checkpoint_every=checkpoint_every)
 
 
-def test_task_two(output, config=None, policy=None, *, plots=True, static_obstacles=()):
+def test_task_two(output, config=None, policy=None, *, plots=True, static_obstacles=(), checkpoint_every=0):
     """45-waypoint field route with more demanding direction changes."""
-    return run_task('task_two', output, config, policy, plots=plots, static_obstacles=static_obstacles)
+    return run_task('task_two', output, config, policy, plots=plots, static_obstacles=static_obstacles, checkpoint_every=checkpoint_every)
+
+
+def _plot_checkpoint(rows, points, output, obstacles, collision_radius, checkpoint):
+    """Render an immutable milestone snapshot from recorded simulation rows."""
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Circle
+    from matplotlib import font_manager, patheffects
+    font = Path('/usr/share/fonts/truetype/SimHei.ttf')
+    if font.exists():
+        font_manager.fontManager.addfont(str(font))
+    style = {'font.family': 'SimHei'} if font.exists() else {}
+    with plt.rc_context({**style, 'axes.unicode_minus': False}):
+        fig, ax = plt.subplots(figsize=(14, 8))
+        fig.subplots_adjust(top=.82, bottom=.20, left=.08, right=.97)
+        reached = checkpoint['reached_waypoints']
+        final = checkpoint.get('final', False)
+        status = ('完成并通过' if checkpoint.get('passed') else '结束，未通过') if final else '运行中'
+        fig.suptitle(f"任务航线：{reached}/{len(points)}航点｜{len(obstacles)}静态目标｜{status}", fontsize=19, y=.97)
+        clearance = checkpoint['minimum_static_clearance_m']
+        clearance_text = '暂无' if clearance is None else f'{clearance:.2f}米'
+        fig.text(.5, .908,
+            f"仿真 {checkpoint['time_s']:.0f}秒　最小净空 {clearance_text}　碰撞 {checkpoint['static_collision_count']}次　航点限速违规 {checkpoint['speed_violation_count']}次",
+            ha='center', fontsize=11)
+        fig.text(.5, .868, '真实本机 Kev 决策 · 蓝色为实际轨迹 · 原航点连线为灰色虚线', ha='center', color='#52616b', fontsize=10)
+        ax.plot(*zip(*points), '--', color='#a0a7ac', lw=1, label='目标航点连线', zorder=1)
+        ax.plot([r['x'] for r in rows], [r['y'] for r in rows], color='#087eae', lw=1.8, label='实际轨迹', zorder=3)
+        recent = [r for r in rows if r['completed_waypoints'] >= max(0, checkpoint['milestone']-10)]
+        ax.plot([r['x'] for r in recent], [r['y'] for r in recent], color='#dd8a20', lw=2.1, label='最近10个航点区间', zorder=4)
+        for i, point in enumerate(points):
+            color = '#218558' if i < reached else '#a0a7ac'
+            ax.add_patch(Circle(point, DEFAULT_ARRIVAL_RADIUS_M, fill=False, color=color, alpha=.35, lw=.7))
+            ax.scatter(*point, color=color, s=20, zorder=5)
+            label=ax.annotate(f'P{i+1}', point, xytext=(4,7 if i%2==0 else -13), textcoords='offset points', fontsize=7.5, color='#263c48', zorder=7)
+            label.set_path_effects([patheffects.withStroke(linewidth=2.5, foreground='white')])
+        for index, center in enumerate(obstacles):
+            ax.add_patch(Circle(center, collision_radius, color='#ce4e42', alpha=.25, zorder=2))
+            ax.scatter(*center, marker='x', s=16, color='#ce4e42', label='静态目标安全范围' if index==0 else None, zorder=5)
+        ax.scatter(rows[-1]['x'], rows[-1]['y'], marker='*', s=145, color='#8548a8', label='当前本艇位置', zorder=9)
+        xx, yy = zip(*points)
+        ax.set(xlim=(min(*xx, rows[-1]['x'])-350, max(*xx, rows[-1]['x'])+350),
+               ylim=(min(*yy, rows[-1]['y'])-400, max(*yy, rows[-1]['y'])+400),
+               xlabel='东向距离（米）', ylabel='北向距离（米）', aspect='equal')
+        ax.grid(alpha=.17)
+        fig.legend(loc='lower center', bbox_to_anchor=(.5,.05), ncol=3, frameon=False, fontsize=10)
+        fig.text(.5,.015,'图示航线附近区域；远处目标可能在图外。默认首航点初始化计为到达。',ha='center',fontsize=9,color='#52616b')
+        folder=output/'checkpoints'
+        folder.mkdir(exist_ok=True)
+        path=folder/('final.png' if final else f"waypoints_{checkpoint['milestone']:02d}.png")
+        fig.savefig(path,dpi=160)
+        plt.close(fig)
+    return path
 
 
 def _plot(rows, points, waypoints, output, obstacles=(), collision_radius=0.):
@@ -267,7 +351,10 @@ def main():
     parser.add_argument('--kev-timeout', type=float, default=120.)
     parser.add_argument('--no-plots', action='store_true')
     parser.add_argument('--static-situation', type=Path, help='JSON array of recorded stationary target records')
+    parser.add_argument('--checkpoint-every', type=int, default=0, help='Save a progress image every N completed waypoints; 0 disables')
     args = parser.parse_args()
+    if args.checkpoint_every < 0:
+        parser.error('--checkpoint-every must be nonnegative')
     try:
         config = TestConfig(**{name: getattr(args, name) for name in TestConfig.__dataclass_fields__ if hasattr(args, name)})
     except ValueError as exc:
@@ -275,7 +362,8 @@ def main():
     functions = {'one': test_task_one, 'two': test_task_two}
     selected = functions.values() if args.task == 'both' else [functions[args.task]]
     obstacles = json.loads(args.static_situation.read_text()) if args.static_situation else ()
-    results = [function(args.output, config, plots=not args.no_plots, static_obstacles=obstacles) for function in selected]
+    results = [function(args.output, config, plots=not args.no_plots, static_obstacles=obstacles,
+                        checkpoint_every=args.checkpoint_every) for function in selected]
     for result in results:
         print(json.dumps({key: result[key] for key in ('task', 'passed', 'completed', 'reason', 'reached_waypoints', 'total_waypoints', 'speed_violation_count')}, ensure_ascii=False))
     return 0 if all(result['passed'] for result in results) else 1

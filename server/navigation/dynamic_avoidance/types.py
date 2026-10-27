@@ -68,7 +68,11 @@ class Target:
 
 @dataclass(frozen=True)
 class AvoidanceConfig:
+    # Legacy/general forecast length for independent callers. Kev uses the
+    # separate warning and action windows below.
     horizon_s: float = 60.
+    warning_horizon_s: float = 60.
+    action_horizon_s: float = 10.
     dt_s: float = .2
     obstacle_radius_m: float = 80.
     vessel_length_m: float = 11.6
@@ -95,6 +99,8 @@ class AvoidanceConfig:
                 raise ValueError(f'invalid {name}')
         if self.heading_step_deg > 180:
             raise ValueError('heading_step_deg must be <= 180')
+        if self.action_horizon_s > self.warning_horizon_s:
+            raise ValueError('action_horizon_s must not exceed warning_horizon_s')
 
     @property
     def safe_distance_m(self):

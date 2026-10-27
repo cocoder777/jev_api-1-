@@ -21,7 +21,7 @@ class Trajectory:
     braking_start_s: float
 
 
-def forecast(own, action, config, *, speed_transition_time_s=None):
+def forecast(own, action, config, *, speed_transition_time_s=None, horizon_s=None):
     """Hold action for the forecast, then simulate a time-aligned braking tail."""
     speed_time = abs(action.speed_mps-own.speed_mps) / (
         config.acceleration_mps2 if action.speed_mps > own.speed_mps else config.deceleration_mps2)
@@ -32,7 +32,10 @@ def forecast(own, action, config, *, speed_transition_time_s=None):
     turn = signed_turn(own.course_deg, action.course_deg) if action.speed_mps > 0 else 0.
     # The underlying predictor resolves the exact 180-degree tie to port.
     turn_time = abs(turn)/config.max_turn_rate_deg_s
-    duration = max(config.horizon_s, speed_time, turn_time)
+    horizon = config.horizon_s if horizon_s is None else horizon_s
+    if isinstance(horizon,bool) or not isinstance(horizon,(int,float)) or not math.isfinite(horizon) or horizon <= 0:
+        raise ValueError('forecast horizon must be positive and finite')
+    duration = max(horizon, speed_time, turn_time)
 
     def segment(speed, course, requested, heading, transition, course_time, length):
         result = predict_ground_motion(speed, course, requested, heading,
@@ -112,5 +115,5 @@ def assess_trajectory(path, targets, config):
                       tuple(risks), tuple(uncertain), tuple(diagnostics))
 
 
-def assess_action(own, targets, action, config):
-    return assess_trajectory(forecast(own, action, config), targets, config)
+def assess_action(own, targets, action, config, *, horizon_s=None):
+    return assess_trajectory(forecast(own, action, config, horizon_s=horizon_s), targets, config)

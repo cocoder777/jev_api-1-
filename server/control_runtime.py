@@ -150,6 +150,21 @@ def run_task_control(session, status_socket, situations, action_target, policy,
                     logger.warning('task %s static obstacle control veto target=%s clearance=%s mode=%s; sending zero speed',
                                    task.get('id'), check['obstacle_id'], check['min_clearance_m'], mode)
                     speed, course, mode = 0., stop_course(), 'obstacle_stop'
+            if callable(getattr(type(policy), 'validate_dynamic_control', None)):
+                fresh=situations.get(plat_code,situation_max_age)
+                records=situation_snapshot(fresh) if fresh is not None else ()
+                check=(policy.validate_dynamic_control(task,fresh,records,speed,course)
+                       if fresh is not None else dict(safe=False,obstacle_id=None,min_clearance_m=None))
+                if not check['safe']:
+                    logger.warning('task %s dynamic obstacle control veto target=%s clearance=%s mode=%s; sending zero speed',
+                        task.get('id'),check['obstacle_id'],check['min_clearance_m'],mode)
+                    moving=speed>0
+                    speed,course,mode=0.,stop_course(),'dynamic_obstacle_stop'
+                    if moving and fresh is not None:
+                        stopped=policy.validate_dynamic_control(task,fresh,records,speed,course)
+                        if not stopped['safe']:
+                            logger.warning('task %s dynamic obstacle zero-speed risk target=%s clearance=%s; awaiting new decision',
+                                task.get('id'),stopped['obstacle_id'],stopped['min_clearance_m'])
             packet = build_control(plat_code, speed, course)
             with session.output_lock:
                 if session.superseded.is_set():
