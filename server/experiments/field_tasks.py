@@ -19,6 +19,7 @@ from server.policies.kev_policy import KEV_SPEEDS_KNOTS, KevPolicy
 from server.policies.progress import NavigationStalled
 from server.policies.turning import DEFAULT_MAX_TURN_RATE_DEG_S
 from server.policies.waypoint_radius import DEFAULT_ARRIVAL_RADIUS_M
+from server.policies.static_obstacles import StaticObstacleConfig, StaticObstacleBlocked, segment_distance
 from tools.navigation_motion import predict_ground_motion
 from tools.waypoint_geometry import EARTH_RADIUS, KNOT_MPS, circle_interval, xy
 
@@ -75,7 +76,7 @@ def _circle_peak(motion, center):
     return peak
 
 
-def run_task(name, output, config=None, policy=None, *, plots=True):
+def run_task(name, output, config=None, policy=None, *, plots=True, static_obstacles=(), detection_range_m=5000.):
     """Run a task; route completion and constraint compliance are separate results.
 
     Inference pauses simulated time. This evaluates the policy and idealized
@@ -88,6 +89,8 @@ def run_task(name, output, config=None, policy=None, *, plots=True):
     first = waypoints[0]
     origin = (first['routeLon'], first['routeLat'])
     points = [xy((p['routeLon'], p['routeLat']), origin) for p in waypoints]
+    obstacles = [dict(r) for r in static_obstacles if r['platformId'] != task['params']['platCode']]
+    centers = [xy((r['longitude'], r['latitude']), origin) for r in obstacles]
     if policy is None:
         policy = KevPolicy(endpoint=config.kev_endpoint, timeout=config.kev_timeout,
                            duration=config.dt, max_turn_rate_deg_s=config.max_turn_rate_deg_s,
@@ -95,6 +98,9 @@ def run_task(name, output, config=None, policy=None, *, plots=True):
     output = Path(output) / name
     output.mkdir(parents=True, exist_ok=True)
     (output / 'task.json').write_text(json.dumps(task, ensure_ascii=False, indent=2) + '\n')
+    (output / 'static-obstacles.json').write_text(json.dumps(obstacles, ensure_ascii=False, indent=2) + '\n')
+    collision_radius = (policy.obstacle_config if isinstance(policy, KevPolicy) else StaticObstacleConfig()).collision_radius_m
+    minimum_clearance = float('inf')
     x, y = config.initial_position_xy_m or (-config.start_offset_m, 0.)
     speed, course = 0., config.initial_course_deg
     rows, arrivals, violations = [], [], []
@@ -122,12 +128,15 @@ def run_task(name, output, config=None, policy=None, *, plots=True):
                 else:
                     request = copy.deepcopy(task)
                     request['params']['next_waypoint_index'] = session.current_route
+                    detections = tuple(r for r,center in zip(obstacles, centers)
+                                       if math.dist((x,y),center) <= detection_range_m)
                     command = decode_speed_course_packet(service(
-                        build_json_packet(request, ALGORITHM_TASK_ID), policy, (state,)))
+                        build_json_packet(request, ALGORITHM_TASK_ID), policy, (state,)+detections))
                     decision = getattr(getattr(policy, 'local', None), 'last_decision', None)
                     decision = copy.deepcopy(decision) if isinstance(decision, dict) else None
             except (ValueError, RuntimeError, OSError, KeyError, TypeError) as exc:
-                reason = 'navigation_no_progress' if isinstance(exc, NavigationStalled) else 'model_error'
+                reason = ('navigation_no_progress' if isinstance(exc, NavigationStalled) else
+                          'static_obstacle_blocked' if isinstance(exc, StaticObstacleBlocked) else 'model_error')
                 error, failed = str(exc), True
                 command, decision = dict(speed=0., course=course), None
             latency = time.perf_counter() - inference_started
@@ -154,6 +163,12 @@ def run_task(name, output, config=None, policy=None, *, plots=True):
             motion = predict_ground_motion(speed, course, command['speed'] * KNOT_MPS,
                                            command['course'], .5, .5, config.dt,
                                            max_turn_rate_deg_s=config.max_turn_rate_deg_s)
+            for obstacle,center in zip(obstacles,centers):
+                relative=(center[0]-x,center[1]-y)
+                clearance=min(segment_distance(relative,a,b) for a,b in zip(motion['path'],motion['path'][1:]))-collision_radius
+                minimum_clearance=min(minimum_clearance,clearance)
+                if clearance <= 0:
+                    violations.append(dict(kind='static_collision',step=step,obstacle_id=obstacle['platformId'],clearance_m=clearance))
             # Check the active circle and all already visited circles still occupied.
             for index in range(target_index + 1):
                 center = (points[index][0] - x, points[index][1] - y)
@@ -185,26 +200,29 @@ def run_task(name, output, config=None, policy=None, *, plots=True):
                    arrival_radius_m=DEFAULT_ARRIVAL_RADIUS_M, speed_unit='knots',
                    waypoint_speed_limits_knots=[p['routeSpeed'] for p in waypoints],
                    speed_violation_count=sum(v['kind'] == 'waypoint_speed' for v in violations),
+                   static_obstacle_count=len(obstacles), static_collision_radius_m=collision_radius,
+                   static_collision_count=sum(v['kind'] == 'static_collision' for v in violations),
+                   minimum_static_clearance_m=minimum_clearance if math.isfinite(minimum_clearance) else None,
                    violations=violations, arrivals=arrivals, config=asdict(config),
                    elapsed_s=time.perf_counter() - started,
                    limitations='Idealized motion; simulation pauses during inference. No live UDP timing or measured hull dynamics.')
     (output / 'summary.json').write_text(json.dumps(summary, ensure_ascii=False, indent=2) + '\n')
     if plots and rows:
-        _plot(rows, points, waypoints, output)
+        _plot(rows, points, waypoints, output, centers, collision_radius)
     return summary
 
 
-def test_task_one(output, config=None, policy=None, *, plots=True):
+def test_task_one(output, config=None, policy=None, *, plots=True, static_obstacles=()):
     """Basic 12-waypoint field route."""
-    return run_task('task_one', output, config, policy, plots=plots)
+    return run_task('task_one', output, config, policy, plots=plots, static_obstacles=static_obstacles)
 
 
-def test_task_two(output, config=None, policy=None, *, plots=True):
+def test_task_two(output, config=None, policy=None, *, plots=True, static_obstacles=()):
     """45-waypoint field route with more demanding direction changes."""
-    return run_task('task_two', output, config, policy, plots=plots)
+    return run_task('task_two', output, config, policy, plots=plots, static_obstacles=static_obstacles)
 
 
-def _plot(rows, points, waypoints, output):
+def _plot(rows, points, waypoints, output, obstacles=(), collision_radius=0.):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
@@ -214,6 +232,8 @@ def _plot(rows, points, waypoints, output):
     axes[0].plot(*zip(*points), '--', color='gray', label='Waypoint order')
     axes[0].plot([r['x'] for r in rows], [r['y'] for r in rows], label='Trajectory')
     axes[0].scatter(rows[0]['x'], rows[0]['y'], marker='s', label='Start')
+    for center in obstacles:
+        axes[0].add_patch(Circle(center, collision_radius, color='red', alpha=.2))
     for index, point in enumerate(points):
         axes[0].add_patch(Circle(point, DEFAULT_ARRIVAL_RADIUS_M, fill=False, color='gray', alpha=.5))
         axes[0].annotate(str(index + 1), point, fontsize=7)
@@ -246,6 +266,7 @@ def main():
     parser.add_argument('--kev-endpoint', default='http://127.0.0.1:18028/v1/systemone')
     parser.add_argument('--kev-timeout', type=float, default=120.)
     parser.add_argument('--no-plots', action='store_true')
+    parser.add_argument('--static-situation', type=Path, help='JSON array of recorded stationary target records')
     args = parser.parse_args()
     try:
         config = TestConfig(**{name: getattr(args, name) for name in TestConfig.__dataclass_fields__ if hasattr(args, name)})
@@ -253,7 +274,8 @@ def main():
         parser.error(str(exc))
     functions = {'one': test_task_one, 'two': test_task_two}
     selected = functions.values() if args.task == 'both' else [functions[args.task]]
-    results = [function(args.output, config, plots=not args.no_plots) for function in selected]
+    obstacles = json.loads(args.static_situation.read_text()) if args.static_situation else ()
+    results = [function(args.output, config, plots=not args.no_plots, static_obstacles=obstacles) for function in selected]
     for result in results:
         print(json.dumps({key: result[key] for key in ('task', 'passed', 'completed', 'reason', 'reached_waypoints', 'total_waypoints', 'speed_violation_count')}, ensure_ascii=False))
     return 0 if all(result['passed'] for result in results) else 1

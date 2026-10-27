@@ -30,3 +30,12 @@ JSON保存用户提供的完整原始任务。`routeSpeed`、态势速度和控�
 ```bash
 python3 -m unittest server.tests.test_field_tasks -v
 ```
+## 静态障碍物回放
+
+`static_situation.json` 来自2026-10-26的实际组播记录，包含1001～1009静止船艇和4001～4007静态障碍物，保留协议字段，速度单位为节。两条原任务不改动，可直接运行：
+
+```bash
+.venv/bin/python server/experiments/field_tasks.py --task both --steps 6000 --static-situation server/experiments/tasks/static_situation.json --output server/experiments/results/static-field-tasks
+```
+
+仿真按本艇5公里范围提供新探测，策略保留已知静态位置。碰撞统计使用全部已录制障碍物，检查积分路径各线段与约86.04米有效避碰圆的净空；报告完成情况、静态碰撞数、最小净空、航点限速和最终停车。图中的红圈是已包含艇体大小的禁入范围。当前近似运动和推理暂停世界的限制仍然适用，不代表实艇验证。
