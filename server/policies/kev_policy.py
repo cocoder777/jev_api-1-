@@ -21,11 +21,13 @@ from .static_obstacles import (StaticObstacleConfig, StaticNavigator, StaticObst
                                ACTUAL_DISTANCE_LOGGER, clear_segment)
 from tools.navigation_motion import predict_ground_motion
 if __package__.startswith('server.'):
+    from ..navigation.target_following import FOLLOWING_CODE, following_action
     from ..navigation.route_rejoin import RouteRejoin, RouteRejoinConfig, refine_courses
     from ..navigation.dynamic_avoidance import AvoidanceConfig
     from ..navigation.dynamic_avoidance.kev import (
         DynamicAvoidanceHold, KevDynamicAvoidance, moving_scene, control_check, wire_action)
 else:
+    from navigation.target_following import FOLLOWING_CODE, following_action
     from navigation.route_rejoin import RouteRejoin, RouteRejoinConfig, refine_courses
     from navigation.dynamic_avoidance import AvoidanceConfig
     from navigation.dynamic_avoidance.kev import (
@@ -48,6 +50,8 @@ def round_model_values(value):
 
 
 class KevPolicy(WaypointPolicy):
+    supports_target_following = True
+
     def __init__(self, endpoint=DEFAULT_KEV_ENDPOINT, timeout=120., client=None, max_turn_rate_deg_s=DEFAULT_MAX_TURN_RATE_DEG_S,
                  initial_course_deg=None, progress_config=None, obstacle_config=None,
                  dynamic_config=None, route_rejoin_config=None, **kwargs):
@@ -145,7 +149,8 @@ class KevPolicy(WaypointPolicy):
                 logging.getLogger(__name__).info('Kev dynamic early warning cleared targets=%s',previous)
 
     def _moving_scene(self, task, own, records):
-        waypoint = task['params']['planWaypointList'][0]
+        waypoint = (dict(routeLon=own['longitude'], routeLat=own['latitude'])
+                    if task.get('code') == FOLLOWING_CODE else task['params']['planWaypointList'][0])
         if (own.get('targetCourse') is None and self.initial_course_deg is not None
                 and own.get('targetSpeed')==0):
             own=dict(own,targetCourse=self.initial_course_deg)
@@ -366,6 +371,8 @@ class KevPolicy(WaypointPolicy):
             raise RuntimeError(f'Local Kev request failed ({self.endpoint}): {exc}') from exc
 
     def __call__(self, packet):
+        if packet.get('code') == FOLLOWING_CODE:
+            return following_action(self, packet)
         obs = self.observation(packet)
         if obs['task']['route_complete']:
             return 0., obs['boat']['targetCourse']
@@ -496,10 +503,12 @@ class KevPolicy(WaypointPolicy):
             self.local.last_decision['inference_s'],choice)
         return speed*(KNOT_MPS if self.speed_unit=='mps' else 1.),course
 
-    def _static_scene(self, task, own, records):
+    def _static_scene(self, task, own, records, *, frame=None):
         from types import SimpleNamespace
         from tools.waypoint_geometry import LocalFrame
-        frame = LocalFrame(task['params']['planWaypointList'])
+        points = ([dict(routeLon=own['longitude'], routeLat=own['latitude'])]
+                  if task.get('code') == FOLLOWING_CODE else task['params']['planWaypointList'])
+        frame = frame or LocalFrame(points)
         boat = dict(own)
         if self.speed_unit == 'mps':
             boat['targetSpeed'] /= KNOT_MPS
@@ -520,7 +529,13 @@ class KevPolicy(WaypointPolicy):
         return ActualDistanceMonitor(ACTUAL_DISTANCE_LOGGER, task, max_gap_s)
 
     def record_actual_distance(self, monitor, task, own, records):
-        geometry, _, obstacles = self._static_scene(task, own, records)
+        frame = None
+        if task.get('code') == FOLLOWING_CODE:
+            from tools.waypoint_geometry import LocalFrame
+            if not hasattr(monitor, 'following_frame'):
+                monitor.following_frame = LocalFrame([dict(routeLon=own['longitude'], routeLat=own['latitude'])])
+            frame = monitor.following_frame
+        geometry, _, obstacles = self._static_scene(task, own, records, frame=frame)
         monitor.update(geometry.boat_position, obstacles)
 
     def validate_control(self, task, own, records, speed, course):

@@ -34,7 +34,7 @@ python3 server/decision_service.py --multicast-interface 192.168.3.202
 python3 server/decision_service.py --multicast-interface 192.168.3.202 --platform-id 1010
 ```
 
-Kev 通过独立接口 `http://127.0.0.1:18028/v1/systemone` 推理，速度由 `policies/kev_policy.py` 的 `KEV_SPEEDS_KNOTS` 设置为10、20、30、40、50节，每个可用档位配合16个局部可达航向；速度阶段根据下一航点转角、距离和限速确定。服务接收 `0x0660` 的 `trackingMode` 任务、`0x0666` 停止请求和 `0x0060` 态势，按 `params.platCode == platformId` 选本艇，输出 `0x0662` 控制报文。可恢复错误连续达到3次才返回 `0x0664` 失败状态；任务/停止请求支持最多10片的协议分包重组。
+Kev 通过独立接口 `http://127.0.0.1:18028/v1/systemone` 推理，速度由 `policies/kev_policy.py` 的 `KEV_SPEEDS_KNOTS` 设置为10、20、30、40、50节，每个可用档位配合16个局部可达航向；速度阶段根据下一航点转角、距离和限速确定。服务接收 `0x0660` 的 `trackingMode` 航点任务和 `targetFollowing` 动态追踪任务、`0x0666` 停止请求和 `0x0060` 态势，按 `params.platCode == platformId` 选本艇，输出 `0x0662` 控制报文。可恢复错误连续达到3次才返回 `0x0664` 失败状态；任务/停止请求支持最多10片的协议分包重组。
 
 Jev 保留原有64个速度/航向候选及本机密钥配置，可显式切换：
 
@@ -81,6 +81,10 @@ Jev 默认接口地址为 `https://api.jevcn.cn/v1/systemone`；Kev 使用独立
 ```powershell
 python -m unittest discover -s server/tests -v
 ```
+
+## 动态目标追踪
+
+默认 Kev 后端新增 `targetFollowing`：按指定目标的实时态势维持两艇中心距离区间，支持追赶、低速匹配与目标停车；进入区间后持续执行，收到停止请求后等待实际停车再完成。目标缺失或过期立即暂发零速，默认连续3次失败后报告失败。任务不使用航路点字段。报文示例、状态字段、预测限制与测试命令见 [动态目标追踪说明](navigation/TARGET_FOLLOWING.md)。当前仅 Kev 支持，需要重启报文服务后生效。
 
 ## 本地模型
 

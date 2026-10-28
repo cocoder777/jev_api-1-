@@ -21,6 +21,7 @@ from typing import Any, Callable, Dict, Mapping, Optional, Tuple
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "jev_api"))
 from tools.waypoint_geometry import LocalFrame
 if __package__:
+    from .navigation import target_following
     from .control_runtime import error_details, run_task_control
     from .policies.waypoint_radius import waypoint_arrival_radius
     from .jev_policy import JevPolicy, jev_policy
@@ -28,6 +29,7 @@ if __package__:
     from .policies.turning import DEFAULT_MAX_TURN_RATE_DEG_S
     from .policies.static_obstacles import StaticObstacleConfig, configure_actual_distance_log
 else:
+    from navigation import target_following
     from control_runtime import error_details, run_task_control
     from policies.waypoint_radius import waypoint_arrival_radius
     from jev_policy import JevPolicy, jev_policy
@@ -571,31 +573,38 @@ class ControlSession:
         self.status_lock = threading.Lock()
         self._lock = threading.Lock()
         params = task.get("params")
-        if not isinstance(params, Mapping) or task.get("code") != "trackingMode":
-            raise ValueError("trackingMode task params must be an object")
+        self.is_following = task.get("code") == target_following.FOLLOWING_CODE
+        if not isinstance(params, Mapping) or task.get("code") not in ("trackingMode", target_following.FOLLOWING_CODE):
+            raise ValueError("expected trackingMode or targetFollowing with object params")
         plat_code = params.get("platCode")
         if type(plat_code) is not int or not 0 <= plat_code <= 0xFFFFFFFF:
             raise ValueError("params.platCode must be an integer in [0, 4294967295]")
-        self.waypoints = params.get("planWaypointList")
-        if (not isinstance(self.waypoints, list) or not self.waypoints
-                or type(params.get("planWaypointNum")) is not int
-                or params.get("planWaypointNum") != len(self.waypoints)):
-            raise ValueError("planWaypointNum must match a nonempty planWaypointList")
-        for index, point in enumerate(self.waypoints):
-            if not isinstance(point, Mapping):
-                raise ValueError("waypoint {} must be an object".format(index + 1))
-            for field in ("routeLon", "routeLat", "routeSpeed"):
-                value = point.get(field)
-                if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
-                    raise ValueError("waypoint {} has invalid {}".format(index + 1, field))
-            if (not -180 <= point["routeLon"] <= 180 or not -90 <= point["routeLat"] <= 90
-                    or point["routeSpeed"] < 0):
-                raise ValueError("waypoint {} has invalid coordinates or speed".format(index + 1))
-        self.frame = LocalFrame(self.waypoints)
-        self.waypoint_positions = [self.frame.project(p['routeLon'], p['routeLat']) for p in self.waypoints]
-        self.current_route = params.get("next_waypoint_index", params.get("currentRoute", 0))
-        self.initial_route = self.current_route
         self.start_state: Optional[Dict[str, Any]] = None
+        self.latest_target = None
+        if self.is_following:
+            target_following.validate_task(task)
+            self.waypoints = []
+            self.current_route = self.initial_route = 0
+        else:
+            self.waypoints = params.get("planWaypointList")
+            if (not isinstance(self.waypoints, list) or not self.waypoints
+                    or type(params.get("planWaypointNum")) is not int
+                    or params.get("planWaypointNum") != len(self.waypoints)):
+                raise ValueError("planWaypointNum must match a nonempty planWaypointList")
+            for index, point in enumerate(self.waypoints):
+                if not isinstance(point, Mapping):
+                    raise ValueError("waypoint {} must be an object".format(index + 1))
+                for field in ("routeLon", "routeLat", "routeSpeed"):
+                    value = point.get(field)
+                    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+                        raise ValueError("waypoint {} has invalid {}".format(index + 1, field))
+                if (not -180 <= point["routeLon"] <= 180 or not -90 <= point["routeLat"] <= 90
+                        or point["routeSpeed"] < 0):
+                    raise ValueError("waypoint {} has invalid coordinates or speed".format(index + 1))
+            self.frame = LocalFrame(self.waypoints)
+            self.waypoint_positions = [self.frame.project(p['routeLon'], p['routeLat']) for p in self.waypoints]
+            self.current_route = params.get("next_waypoint_index", params.get("currentRoute", 0))
+            self.initial_route = self.current_route
         self.phase = "tracking"
         self.description = "tracking"
         self.errors: Dict[str, Any] = {}
@@ -604,7 +613,8 @@ class ControlSession:
         self.stop_confirmed = False
         self.speed_unit = speed_unit
         self.latest_state: Optional[Dict[str, Any]] = None
-        self.progress = calculate_route_progress(self.task, None, self.current_route, speed_unit)
+        self.progress = (target_following.progress(self.task) if self.is_following else
+                         calculate_route_progress(self.task, None, self.current_route, speed_unit))
 
     @property
     def key(self) -> Tuple[Any, Any]:
@@ -625,6 +635,8 @@ class ControlSession:
         self.stop_requested.set()  # Wake the old loop without waiting for its next tick.
 
     def update_route(self, current_route: int) -> None:
+        if self.is_following:
+            return
         with self._lock:
             self.current_route = max(self.current_route, int(current_route))
             self.progress = calculate_route_progress(
@@ -643,6 +655,9 @@ class ControlSession:
             if self.start_state is None:
                 self.start_state = dict(state)
             self.latest_state = dict(state)
+            if self.is_following:
+                self.progress = target_following.progress(self.task, state, self.latest_target, self.speed_unit)
+                return
             position = self.frame.project(state['longitude'], state['latitude'])
             while self.current_route < len(self.waypoints):
                 point = self.waypoints[self.current_route]
@@ -654,10 +669,22 @@ class ControlSession:
                 self.start_state, self.initial_route,
             )
 
+    def update_target(self, records):
+        try:
+            target = target_following.target_record(self.task, records)
+        except target_following.TargetUnavailable:
+            with self._lock:
+                self.latest_target = None
+                self.progress = target_following.progress(self.task)
+            raise
+        with self._lock:
+            self.latest_target = dict(target)
+            self.progress = target_following.progress(self.task, self.latest_state, target, self.speed_unit)
+
     @property
     def route_complete(self) -> bool:
         with self._lock:
-            return self.current_route >= len(self.waypoints)
+            return not self.is_following and self.current_route >= len(self.waypoints)
 
     def set_phase(self, phase: str, description: str) -> None:
         with self._lock:
@@ -669,10 +696,12 @@ class ControlSession:
             self.errors = error_details(stage, exc)
             self.errors["maxConsecutiveErrors"] = limit
             labels = dict(situation="态势接收", inference="模型决策", control="控制指令发送", task="任务校验")
+            objective = ("追踪目标{}".format(self.task['params']['targetPlatformId']) if self.is_following else
+                         "目标航路点{}/{}".format(min(self.current_route + 1, len(self.waypoints)), len(self.waypoints)))
             self.description = (
-                "{}异常：平台{}，目标航路点{}/{}，连续失败{}/{}次；{}: {}".format(
+                "{}异常：平台{}，{}，连续失败{}/{}次；{}: {}".format(
                     labels.get(stage, stage), self.task["params"].get("platCode"),
-                    min(self.current_route + 1, len(self.waypoints)), len(self.waypoints),
+                    objective,
                     self.consecutive_errors, limit, self.errors["errorType"], self.errors["lastError"],
                 )
             )
@@ -694,9 +723,11 @@ class ControlSession:
             if progress.get("nextWaypoint") is not None:
                 progress["nextWaypoint"] = dict(progress["nextWaypoint"])
             progress.update(self.errors)
-            progress.update(currentRoute=self.current_route, phase=self.phase,
+            progress.update(phase=self.phase,
                             consecutiveErrors=self.consecutive_errors,
                             stopCommandSent=self.stop_command_sent, stopConfirmed=self.stop_confirmed)
+            if not self.is_following:
+                progress["currentRoute"] = self.current_route
         return description, progress
 
 
@@ -917,6 +948,12 @@ def start_server(
                     continue
                 try:
                     session = ControlSession(task, remote, getattr(policy, "speed_unit", "knots"))
+                    if session.is_following:
+                        if not getattr(type(policy), 'supports_target_following', False):
+                            raise ValueError('targetFollowing requires the Kev backend')
+                        if task['params']['minFollowingDistanceM'] <= max(
+                                policy.obstacle_config.collision_radius_m, policy.dynamic_config.safe_distance_m):
+                            raise ValueError('minimum following distance must exceed configured obstacle safety distance')
                     replaced = registry.replace(session)
                 except (ValueError, TypeError, KeyError) as exc:
                     details = error_details("task", exc)

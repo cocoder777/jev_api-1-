@@ -1,6 +1,7 @@
 """Per-task model worker and safe error metadata; no socket ownership here."""
 
 from concurrent.futures import Future
+
 import math
 import os
 import queue
@@ -9,6 +10,11 @@ import threading
 import socket
 import time
 from urllib.error import HTTPError, URLError
+
+if __package__:
+    from .navigation.target_following import TargetUnavailable, target_record
+else:
+    from navigation.target_following import TargetUnavailable, target_record
 
 
 class PolicyWorker:
@@ -142,6 +148,12 @@ def run_task_control(session, status_socket, situations, action_target, policy,
 
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as control_socket:
         def send_control(speed, course, mode):
+            if session.is_following and speed > 0:
+                try:
+                    target_record(task, situations.query_state(include_age=True))
+                except TargetUnavailable:
+                    speed, course, mode = 0., stop_course(), 'following_target_stop'
+
             if speed > 0 and callable(getattr(type(policy), 'validate_control', None)):
                 fresh = situations.get(plat_code, situation_max_age)
                 check = (policy.validate_control(task, fresh, situation_snapshot(fresh), speed, course)
@@ -216,6 +228,7 @@ def run_task_control(session, status_socket, situations, action_target, policy,
                 failed_this_tick = False
                 new_action = False
                 now = time.monotonic()
+                following_ready = True
                 own_state = situations.get(plat_code, situation_max_age)
                 if own_state is not None:
                     try:
@@ -225,8 +238,21 @@ def run_task_control(session, status_socket, situations, action_target, policy,
                         if callable(getattr(type(policy), 'validate_position', None)):
                             policy.validate_position(task, own_state, situation_snapshot(own_state))
                         session.update_situation(own_state)
+                        if session.is_following and not session.stop_requested.is_set():
+                            session.update_target(situation_snapshot(own_state))
                         if session.errors.get('errorStage') == 'situation':
                             session.clear_errors()
+                    except TargetUnavailable as exc:
+                        following_ready = False
+                        last_action = None
+                        pending_route = None
+                        try:
+                            send_stop()
+                        except OSError as stop_error:
+                            if issue('control', stop_error):
+                                return
+                        if issue('situation', exc):
+                            return
                     except (ValueError, TypeError, KeyError) as exc:
                         issue('situation', exc)
                         return
@@ -259,7 +285,13 @@ def run_task_control(session, status_socket, situations, action_target, policy,
                         if issue('situation', TimeoutError(
                                 '未收到本艇新鲜态势，最大允许态势年龄为{}秒'.format(situation_max_age))):
                             return
+                    elif not following_ready:
+                        pass
                     else:
+                        if session.is_following and pending is not None and pending.done() and pending_route is None:
+                            # A target-loss interval invalidates both results and
+                            # exceptions from the earlier snapshot.
+                            pending = None
                         if pending is not None and pending.done():
                             try:
                                 action = pending.result()
@@ -280,7 +312,8 @@ def run_task_control(session, status_socket, situations, action_target, policy,
                                 pending = None
                         if pending is None and not (max_cycles > 0 and cycles + int(new_action) >= max_cycles):
                             packet = dict(task)
-                            packet['params'] = dict(task['params'], next_waypoint_index=session.current_route)
+                            packet['params'] = (dict(task['params']) if session.is_following else
+                                                dict(task['params'], next_waypoint_index=session.current_route))
                             packet['situation'] = situation_snapshot(own_state)
                             pending_route = session.current_route
                             pending_started = now
