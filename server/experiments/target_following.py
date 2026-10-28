@@ -37,27 +37,18 @@ def mock_choice(payload):
     return dict(answers=dict(action=dict(type='choice', choice=min(items, key=lambda k: score(items[k])))))
 
 
-def integrate(position, speed, course, action, seconds=1.):
-    """Dense midpoint integration with the service's 0.5s speed response/45deg/s.
+def integrate(position, speed, course, action, seconds=1., *, initial_turn_rate_deg_s=0.,
+              return_turn_rate=False, config=None):
+    """Dense independent midpoint position integration under physical limits.
 
-    Returns sampled positions so min distance is measured through the action,
-    rather than only comparing control-tick endpoints.
+    Speeds at this compatibility interface are in knots; Vessel uses SI units.
     """
-    command_speed, command_course = action
-    turn = (command_course-course+180)%360-180 if command_speed else 0.
-    x, y = position
-    points = [(x, y)]
-    count = math.ceil(seconds/.02)
-    dt = seconds/count
-    for i in range(count):
-        t = (i+.5)*dt
-        v = (speed+(command_speed-speed)*min(1., t/.5))*KNOT_MPS
-        heading = math.radians(course+math.copysign(min(abs(turn),45*t),turn))
-        x += v*math.sin(heading)*dt
-        y += v*math.cos(heading)*dt
-        points.append((x,y))
-    end_course = (course+math.copysign(min(abs(turn),45*seconds),turn))%360
-    return (x,y), command_speed, end_course, points
+    from server.experiments.dynamic_avoidance import advance
+    from server.navigation.dynamic_avoidance import Vessel, Action, AvoidanceConfig
+    end, trace = advance(Vessel(position,speed*KNOT_MPS,course,initial_turn_rate_deg_s),
+                         Action(action[0]*KNOT_MPS,action[1]),seconds,config or AvoidanceConfig())
+    result = (end.position_m,end.speed_mps/KNOT_MPS,end.course_deg,[(x,y) for _,x,y in trace])
+    return (*result,end.turn_rate_deg_s) if return_turn_rate else result
 
 
 def run_scenario(name, policy, steps):
@@ -65,18 +56,19 @@ def run_scenario(name, policy, steps):
         platCode=1010, targetPlatformId=3001, minFollowingDistanceM=150., maxFollowingDistanceM=250.))
     boat, tracked = (0.,0.), (400.,0.) if name == 'catch_up' else (200.,0.)
     speed, course = 10.,90.
+    yaw_rate = 0.
     rows = []
     minimum = float('inf')
     in_band = 0
     for tick in range(steps):
         target_speed = 0. if name == 'target_stop' and tick >= steps//3 else 10.
         target_course = 0. if name == 'target_turn' and tick >= steps//3 else 90.
-        own = record(1010, boat, speed, course)
+        own = dict(record(1010, boat, speed, course), _turn_rate_deg_s=yaw_rate)
         target = record(3001, tracked, target_speed, target_course)
         started = time.perf_counter()
         action = policy(dict(packet, situation=(own,target)))
         elapsed = time.perf_counter()-started
-        boat, speed, course, points = integrate(boat,speed,course,action)
+        boat, speed, course, points, yaw_rate = integrate(boat,speed,course,action, initial_turn_rate_deg_s=yaw_rate, return_turn_rate=True, config=policy.dynamic_config)
         tv = (target_speed*KNOT_MPS*math.sin(math.radians(target_course)),
               target_speed*KNOT_MPS*math.cos(math.radians(target_course)))
         for index, point in enumerate(points):

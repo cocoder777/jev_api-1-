@@ -155,6 +155,7 @@ def run(name,output,*,endpoint,dt=2.,duration=None,mock=False,task_config=DEFAUL
     target=center if name=='crossing_variable' else anchor
     theta=0.
     course=target_course(name,0.,theta);speed=target_speed(name,0.)
+    yaw_rate=0.
     packet=json.loads(Path(task_config).read_text())
     from server.navigation.target_following import validate_task
     validate_task(packet)
@@ -177,7 +178,7 @@ def run(name,output,*,endpoint,dt=2.,duration=None,mock=False,task_config=DEFAUL
         obstacle_source=str(TASKS/'static_situation.json'),map_origin_lon_lat=frame.origin,
         map_route_xy_m=route,obstacles_xy_m=[dict(id=r['platformId'],xy=frame.project(r['longitude'],r['latitude'])) for r in static],
         target_start_xy_m=target,own_start_xy_m=own,collision_radius_m=policy.obstacle_config.collision_radius_m,
-        vessel_motion='0.5s speed response, bounded 45deg/s turn, independent 0.02s integration',
+        vessel_motion='50kn max; accel 1.46m/s², braking 1.75m/s², yaw 12deg/s, yaw acceleration 4deg/s²; independent 0.02s position integration',
         target_motion='10kn straight; 10kn sinusoidal course; arc-length figure-eight with 6–18kn sinusoidal speed',
         timing='Offline sequential inference; simulated world paused during HTTP requests, not real-time UDP')
     dump(folder/'configuration.json',metadata);dump(folder/'task.json',packet)
@@ -190,11 +191,11 @@ def run(name,output,*,endpoint,dt=2.,duration=None,mock=False,task_config=DEFAUL
         while t < end-1e-9:
             step=min(dt,end-t)
             target_velocity=target_speed(name,t);target_heading=target_course(name,t,theta)
-            records=(to_record(frame,packet['params']['platCode'],own,speed,course),
+            records=(dict(to_record(frame,packet['params']['platCode'],own,speed,course),_turn_rate_deg_s=yaw_rate),
                      to_record(frame,packet['params']['targetPlatformId'],target,target_velocity,target_heading),*static)
             started=time.perf_counter();action=policy(dict(packet,situation=records));elapsed=time.perf_counter()-started
             max_decision=max(max_decision,elapsed)
-            own,speed,course,own_points=integrate(own,speed,course,action,step)
+            own,speed,course,own_points,yaw_rate=integrate(own,speed,course,action,step,initial_turn_rate_deg_s=yaw_rate,return_turn_rate=True,config=policy.dynamic_config)
             target,theta,target_points=advance_target(name,t,step,target,theta,center)
             for a,b in zip(own_points,target_points):
                 d=math.dist(a,b);minimum=min(minimum,d);maximum=max(maximum,d)

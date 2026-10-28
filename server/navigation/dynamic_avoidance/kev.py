@@ -7,7 +7,8 @@ from dataclasses import asdict, replace
 from tools.waypoint_geometry import KNOT_MPS
 from .adapter import scene_from_situation
 from .planner import DynamicAvoidancePlanner
-from .prediction import assess_action, assess_trajectory, forecast, signed_turn
+from .overtaking import OvertakingProgress
+from .prediction import assess_action, signed_turn
 from .types import Action, finite
 
 
@@ -45,15 +46,9 @@ def wire_action(speed_knots, course, speed_unit='knots'):
 
 
 def check_models(scene, action, config, speed_transition_s, *, horizon_s=None):
-    """Require both bounded physical response and configured simulator response."""
+    """Check nominal measured response and physical capability where calibrated."""
     own, targets = scene
-    physical = assess_action(own, targets, action, config, horizon_s=horizon_s)
-    configured = assess_trajectory(forecast(own, action, config,
-        speed_transition_time_s=speed_transition_s, horizon_s=horizon_s), targets, config)
-    if physical.safe != configured.safe:
-        return configured if not configured.safe else physical
-    return min((physical, configured), key=lambda c: (
-        -len(c.uncertain_target_ids), c.min_clearance_m if c.min_clearance_m is not None else float('inf')))
+    return assess_action(own, targets, action, config, horizon_s=horizon_s)
 
 
 class KevDynamicAvoidance:
@@ -63,6 +58,7 @@ class KevDynamicAvoidance:
         self.speed_unit = speed_unit
         self.action_config = replace(config,horizon_s=config.action_horizon_s)
         self.planner = DynamicAvoidancePlanner(self.action_config)
+        self.overtaking = OvertakingProgress(self.action_config)
         self.last_warning = None
 
     def needs_avoidance(self, scene, desired):
@@ -75,7 +71,7 @@ class KevDynamicAvoidance:
                       | {round(cap*f, 2) for f in (0., .25, .5, .75)})
 
     def filter(self, scene, criteria, *, expand):
-        """Preserve an all-safe baseline; expand only when the desired action is unsafe.
+        """Preserve clear baselines; keep passing progress until the slow target is astern.
 
         expand(speeds_knots) must return candidates that passed the original
         static checks, within the baseline speed cap and reachable courses.
@@ -101,20 +97,25 @@ class KevDynamicAvoidance:
                 cache[action] = check_models(scene, action, self.action_config, self.speed_transition_s)
             return cache[action]
         checks = {key: evaluate(action) for key, action in actions.items()}
-        if all(check.safe for check in checks.values()):
-            self.planner.reset()
-            return criteria, None
         desired_check = checks[preferred]
         threats = {r.target_id for check in checks.values() for r in check.risks if not r.safe}
         threats.update(t for check in checks.values() for t in check.uncertain_target_ids)
-        if not desired_check.safe:
+        passing_threats = {r.target_id for r in desired_check.risks if not r.safe}
+        passing_target = self.overtaking.update(own,targets,desired,passing_threats)
+        if all(check.safe for check in checks.values()) and passing_target is None:
+            self.planner.reset()
+            return criteria, None
+        if not desired_check.safe or passing_target is not None:
             cap = max(item['speed_knots'] for item in criteria.values())
             criteria = expand(self.extra_speeds([cap]))
             if any(item['speed_knots'] > cap+1e-9 for item in criteria.values()):
                 raise ValueError('dynamic expansion exceeded the static speed cap')
             actions = actions_for(criteria)
             checks = {key: evaluate(action) for key, action in actions.items()}
-        admissible = [action for key, action in actions.items() if checks[key].safe]
+        safe = {key:item for key,item in criteria.items() if checks[key].safe}
+        if passing_target is not None:
+            safe = self.overtaking.select(own,passing_target,safe,actions)
+        admissible = [actions[key] for key in safe]
         result = self.planner.plan(own, targets, desired, candidates=admissible)
         if result.action is None:
             result = replace(result, assessment=desired_check, threat_ids=tuple(sorted(threats)),
@@ -127,12 +128,16 @@ class KevDynamicAvoidance:
         details['action_horizon_s'] = self.config.action_horizon_s
         details['warning_horizon_s'] = self.config.warning_horizon_s
         details['threat_ids'] = sorted(threats)
+        if passing_target is not None:
+            details['overtaking'] = self.overtaking.details
+            details['threat_ids'] = sorted(set(details['threat_ids']) | {passing_target.target_id})
         if result.action is None:
             raise DynamicAvoidanceHold(details)
-        safe = {key: item for key, item in criteria.items() if checks[key].safe}
+        if passing_target is not None:
+            details['status'] = 'avoiding'
         if result.status == 'clear' and not desired_check.safe:
-            # Desired may be safe under the physical model but fail under the
-            # configured fast response. Candidates still passed both checks.
+            # A replacement action can be clear even though the original desired
+            # action was unsafe. Keep avoidance active until recovery.
             details['status'] = 'avoiding'
         if details['status'] == 'avoiding':
             preferred = signed_turn(own.course_deg, result.action.course_deg)

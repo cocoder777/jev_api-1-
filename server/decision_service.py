@@ -528,13 +528,26 @@ class SituationStore:
     def __init__(self) -> None:
         self._records: Dict[int, Tuple[Dict[str, Any], float]] = {}
         self._lock = threading.Lock()
+        self._turn_rates = {}
 
     def update(self, record: Mapping[str, Any]) -> None:
         platform_id = record.get("platformId")
         if not isinstance(platform_id, int):
             raise ValueError("situation platformId must be an integer")
         with self._lock:
-            self._records[platform_id] = (dict(record), time.monotonic())
+            now = time.monotonic()
+            previous = self._records.get(platform_id)
+            rate = record.get('_turn_rate_deg_s', 0.)
+            if '_turn_rate_deg_s' not in record and previous:
+                old, received = previous
+                elapsed = now-received
+                before, after = old.get('targetCourse'), record.get('targetCourse')
+                if .05 <= elapsed <= 5. and all(isinstance(v,(int,float)) and math.isfinite(v) for v in (before,after)):
+                    rate = max(-12.,min(12.,((after-before+180)%360-180)/elapsed))
+                elif elapsed < .05:
+                    rate = self._turn_rates.get(platform_id,0.)
+            self._turn_rates[platform_id] = rate
+            self._records[platform_id] = (dict(record), now)
 
     def query_state(self, *, include_age: bool = False) -> Tuple[Dict[str, Any], ...]:
         """Return a stable snapshot for policy input."""
@@ -542,7 +555,7 @@ class SituationStore:
         with self._lock:
             now = time.monotonic()
             return tuple(dict(self._records[key][0], **(
-                {'_received_age_s': max(0., now-self._records[key][1])} if include_age else {}))
+                {'_received_age_s': max(0., now-self._records[key][1]), '_turn_rate_deg_s':self._turn_rates.get(key,0.)} if include_age else {}))
                 for key in sorted(self._records))
 
     def get(self, platform_id: int, max_age: float) -> Optional[Dict[str, Any]]:
@@ -552,7 +565,7 @@ class SituationStore:
             item = self._records.get(platform_id)
             if item is None or time.monotonic() - item[1] > max_age:
                 return None
-            return dict(item[0])
+            return dict(item[0], _turn_rate_deg_s=self._turn_rates.get(platform_id,0.))
 
 
 class ControlSession:
@@ -1149,7 +1162,9 @@ def parse_args() -> argparse.Namespace:
                         help="决策后端，默认 kev；可切换为 jev 或 julia")
     parser.add_argument("--local-model-path", default=os.getenv("LOCAL_MODEL_PATH", str(Path(__file__).resolve().parents[1] / "models/Julia-1")))
     parser.add_argument("--kev-endpoint", default=os.getenv("KEV_ENDPOINT", "http://127.0.0.1:18028/v1/systemone"))
-    parser.add_argument("--max-turn-rate-deg-s", type=float, default=float(os.getenv("MAX_TURN_RATE_DEG_S", str(DEFAULT_MAX_TURN_RATE_DEG_S))), help="Kev转向角速度预测上限，默认45度/秒；1秒周期对应最大转角45度，未实艇标定")
+    parser.add_argument("--max-turn-rate-deg-s", type=float, default=float(os.getenv("MAX_TURN_RATE_DEG_S", str(DEFAULT_MAX_TURN_RATE_DEG_S))), help="Kev转向角速度预测上限，默认12度/秒（11节工况），角加速度上限4度/秒²；其他航速暂用同一上限")
+    parser.add_argument("--acceleration-response", choices=("measured_0_50kn", "bounded"), default=os.getenv("ACCELERATION_RESPONSE", "measured_0_50kn"), help="默认仅在直线加速到50节时使用实测响应；bounded仅使用能力上限")
+    parser.add_argument("--motion-curves-file", default=os.getenv("MOTION_CURVES_FILE"), help="可选SI航速能力曲线JSON；acceleration_curve/deceleration_curve/turn_rate_curve")
     parser.add_argument("--initial-course-deg", type=float, default=float(os.environ["INITIAL_COURSE_DEG"]) if os.getenv("INITIAL_COURSE_DEG") else None, help="Kev静止且态势缺少targetCourse时的备用方向；优先使用态势航向")
     parser.add_argument("--kev-timeout", type=float, default=float(os.getenv("KEV_TIMEOUT", "120")))
     parser.add_argument("--max-consecutive-errors", type=int,
@@ -1168,8 +1183,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--vessel-length-m", type=float, default=float(os.getenv("VESSEL_LENGTH_M", "11.6")))
     parser.add_argument("--vessel-width-m", type=float, default=float(os.getenv("VESSEL_WIDTH_M", "3.4")))
     parser.add_argument("--static-obstacle-margin-m", type=float, default=float(os.getenv("STATIC_OBSTACLE_MARGIN_M", "0")))
-    parser.add_argument("--speed-transition-time", type=float, default=float(os.getenv("SPEED_TRANSITION_TIME", "0.5")))
-    parser.add_argument("--course-transition-time", type=float, default=float(os.getenv("COURSE_TRANSITION_TIME", "0.5")))
+    parser.add_argument("--speed-transition-time", type=float, default=float(os.getenv("SPEED_TRANSITION_TIME", "0.5")), help="兼容旧配置；物理预测已改用加减速度约束，此值不再决定变速时间")
+    parser.add_argument("--course-transition-time", type=float, default=float(os.getenv("COURSE_TRANSITION_TIME", "0.5")), help="兼容旧配置；物理预测已改用角速度及角加速度约束")
     parser.add_argument("--jev-timeout", type=float, default=float(os.getenv("JEV_TIMEOUT", "30.0")))
     parser.add_argument("--situation-group", default=os.getenv("SITUATION_GROUP", DEFAULT_SITUATION_GROUP))
     parser.add_argument("--situation-port", type=int, default=int(os.getenv("SITUATION_PORT", DEFAULT_SITUATION_PORT)))
@@ -1249,6 +1264,8 @@ def main() -> None:
         kev_obstacle_config=obstacle_config,
         model=args.model, endpoint=args.endpoint, speed_unit=args.speed_unit,
         max_speed_knots=args.max_speed_knots, duration=args.control_interval,
+        motion_curves=json.loads(Path(args.motion_curves_file).read_text()) if args.motion_curves_file else None,
+        acceleration_response=args.acceleration_response,
         speed_transition=args.speed_transition_time,
         course_transition=args.course_transition_time,
         api_timeout=args.jev_timeout,

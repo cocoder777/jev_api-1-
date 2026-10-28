@@ -7,6 +7,7 @@ import math
 import time
 
 from tools.navigation_motion import predict_ground_motion
+from tools.vessel_dynamics import motion_parameters
 from tools.waypoint_geometry import KNOT_MPS, xy
 
 FOLLOWING_CODE = 'targetFollowing'
@@ -109,9 +110,8 @@ def forecast(policy, own, speed, course, duration):
     course_time = policy.execution['course_transition_time_s']
     dt = .1
     motion = predict_ground_motion(own['targetSpeed']*factor, own['targetCourse'], speed*KNOT_MPS,
-        course, speed_time, course_time, duration, dt=dt, max_turn_rate_deg_s=policy.max_turn_rate_deg_s)
-    motion['_times'] = sorted(set([0., duration] + [i*dt for i in range(1, math.ceil(duration/dt)) if i*dt < duration]
-                                     + [v for v in (speed_time, course_time) if 0 < v < duration]))
+        course, speed_time, course_time, duration, dt=dt, **motion_parameters(dict(policy.execution, initial_turn_rate_deg_s=own.get('_turn_rate_deg_s', 0.))))
+    motion['_times'] = motion['times_s']
     return motion
 
 
@@ -170,7 +170,8 @@ def following_action(policy, packet):
             action = range_facts(motion, delta, velocity)
             preview = range_facts(forecast(policy, own, actual_knots, course, preview_s), delta, velocity)
             closing = max(0., -action[3])
-            braking = closing*closing/(2*policy.obstacle_config.deceleration_mps2)
+            braking_limit = min([policy.obstacle_config.deceleration_mps2]+[p[1] for p in policy.execution.get('deceleration_curve',())])
+            braking = closing*closing/(2*braking_limit)
             criteria[f'speed_{speed:g}__heading_{j:02d}'] = dict(speed_knots=actual_knots,
                 absolute_course_deg=course, range_m=list(action[:3]), range_rate_mps=action[3],
                 reference_error_m=abs(action[2]-reference), preview_range_m=list(preview[:3]),
@@ -210,8 +211,8 @@ def following_action(policy, packet):
     state = dict(task='line_of_sight_distance_following', **progress(packet, own, target, policy.speed_unit),
                  recovery_phase=recovery, reference_distance_m=reference, target_offset_m=list(delta), target_velocity_mps=list(velocity),
                  actual_course_deg=own['targetCourse'], actual_speed_knots=own['targetSpeed']*factor/KNOT_MPS,
-                 command_duration_s=policy.duration, preview_duration_s=preview_s,
-                 forecast_assumption='Target constant current velocity; own configured speed response and bounded turn rate. Future target turns unknown.')
+                 command_duration_s=policy.duration, preview_duration_s=preview_s, motion_limits=motion_parameters(policy.execution),
+                 forecast_assumption='Target constant current velocity; own motion uses motion_limits.acceleration_response; measured_0_50kn is nominal straight acceleration to 50 knots, bounded and other maneuvers use physical limits (12 deg/s at 11 knots; provisional elsewhere). Future target turns unknown.')
     if not criteria:
         policy.local.last_decision = dict(selection_mode='following_safety_hold', state=state, options={}, candidate_count=0)
         return 0., own['targetCourse']

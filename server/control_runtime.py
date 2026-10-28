@@ -10,6 +10,7 @@ import threading
 import socket
 import time
 from urllib.error import HTTPError, URLError
+from tools.vessel_dynamics import MAX_SPEED_KNOTS, MAX_SPEED_MPS
 
 if __package__:
     from .navigation.target_following import TargetUnavailable, target_record
@@ -148,6 +149,7 @@ def run_task_control(session, status_socket, situations, action_target, policy,
 
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as control_socket:
         def send_control(speed, course, mode):
+            speed = min(speed, MAX_SPEED_MPS if session.speed_unit == 'mps' else MAX_SPEED_KNOTS)
             if session.is_following and speed > 0:
                 try:
                     target_record(task, situations.query_state(include_age=True))
