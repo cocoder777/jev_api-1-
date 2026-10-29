@@ -586,9 +586,9 @@ class ControlSession:
         self.status_lock = threading.Lock()
         self._lock = threading.Lock()
         params = task.get("params")
-        self.is_following = task.get("code") == target_following.FOLLOWING_CODE
-        if not isinstance(params, Mapping) or task.get("code") not in ("trackingMode", target_following.FOLLOWING_CODE):
-            raise ValueError("expected trackingMode or targetFollowing with object params")
+        self.is_following = target_following.is_target_task(task)
+        if not isinstance(params, Mapping) or not (task.get("code")=="trackingMode" or self.is_following):
+            raise ValueError("expected trackingMode, followMode, accompanyMode or targetFollowing with object params")
         plat_code = params.get("platCode")
         if type(plat_code) is not int or not 0 <= plat_code <= 0xFFFFFFFF:
             raise ValueError("params.platCode must be an integer in [0, 4294967295]")
@@ -619,7 +619,7 @@ class ControlSession:
             self.current_route = params.get("next_waypoint_index", params.get("currentRoute", 0))
             self.initial_route = self.current_route
         self.phase = "tracking"
-        self.description = "tracking"
+        self.description = ("伴随中" if task.get("code")=="accompanyMode" else "跟随中" if task.get("code")=="followMode" else "tracking")
         self.errors: Dict[str, Any] = {}
         self.consecutive_errors = 0
         self.stop_command_sent = False
@@ -708,8 +708,8 @@ class ControlSession:
             self.consecutive_errors += 1
             self.errors = error_details(stage, exc)
             self.errors["maxConsecutiveErrors"] = limit
-            labels = dict(situation="态势接收", inference="模型决策", control="控制指令发送", task="任务校验")
-            objective = ("追踪目标{}".format(self.task['params']['targetPlatformId']) if self.is_following else
+            labels = dict(situation="态势接收", inference="模型决策", control="控制指令发送", task="任务校验", collision="碰撞检测")
+            objective = ("{}目标{}".format('伴随' if self.task.get('code')=='accompanyMode' else '跟随',target_following.target_id(self.task)) if self.is_following else
                          "目标航路点{}/{}".format(min(self.current_route + 1, len(self.waypoints)), len(self.waypoints)))
             self.description = (
                 "{}异常：平台{}，{}，连续失败{}/{}次；{}: {}".format(
@@ -727,7 +727,7 @@ class ControlSession:
             self.consecutive_errors = 0
             self.errors = {}
             if self.phase not in ("stopping", "finishing"):
-                self.phase, self.description = "tracking", "tracking"
+                self.phase, self.description = "tracking", ("伴随中" if self.task.get("code")=="accompanyMode" else "跟随中" if self.task.get("code")=="followMode" else "tracking")
 
     def status_fields(self) -> Tuple[str, Dict[str, Any]]:
         with self._lock:
@@ -963,13 +963,25 @@ def start_server(
                     session = ControlSession(task, remote, getattr(policy, "speed_unit", "knots"))
                     if session.is_following:
                         if not getattr(type(policy), 'supports_target_following', False):
-                            raise ValueError('targetFollowing requires the Kev backend')
-                        if task['params']['minFollowingDistanceM'] <= max(
+                            raise ValueError('followMode/accompanyMode/targetFollowing require the Kev backend')
+                        if task.get('code') in target_following.TARGET_CODES:
+                            if __package__:
+                                from .navigation.target_tasks import validate_feasibility
+                            else:
+                                from navigation.target_tasks import validate_feasibility
+                            validate_feasibility(task,max(policy.obstacle_config.collision_radius_m,
+                                                          policy.dynamic_config.safe_distance_m))
+                        elif task['params']['minFollowingDistanceM'] <= max(
                                 policy.obstacle_config.collision_radius_m, policy.dynamic_config.safe_distance_m):
                             raise ValueError('minimum following distance must exceed configured obstacle safety distance')
                     replaced = registry.replace(session)
                 except (ValueError, TypeError, KeyError) as exc:
                     details = error_details("task", exc)
+                    if task.get('code') in target_following.TARGET_CODES and isinstance(task.get('params'),dict):
+                        try:
+                            details={**target_following.progress(task),**details}
+                        except (KeyError,TypeError,ValueError):
+                            pass
                     LOGGER.warning("task %s validation failed: %s", task.get("id"), details["lastError"])
                     server.sendto(build_algorithm_status_packet(
                         task, 3, "任务校验失败：{}；任务未启动，未下发航行指令".format(details["lastError"]), details,

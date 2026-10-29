@@ -11,6 +11,15 @@ from tools.vessel_dynamics import motion_parameters
 from tools.waypoint_geometry import KNOT_MPS, xy
 
 FOLLOWING_CODE = 'targetFollowing'
+TARGET_CODES = ('followMode','accompanyMode')
+
+
+def is_target_task(task):
+    return task.get('code') in (FOLLOWING_CODE,*TARGET_CODES)
+
+
+def target_id(task):
+    return task['params']['targetPlatCode' if task.get('code') in TARGET_CODES else 'targetPlatformId']
 
 
 def finite(value):
@@ -18,6 +27,9 @@ def finite(value):
 
 
 def validate_task(task):
+    if task.get('code') in TARGET_CODES:
+        from .target_tasks import validate_task as validate_document_task
+        return validate_document_task(task)
     params = task.get('params')
     if not isinstance(params, dict):
         raise ValueError('targetFollowing params must be an object')
@@ -39,6 +51,9 @@ class TargetUnavailable(TimeoutError):
 
 
 def target_record(task, records):
+    if task.get('code') in TARGET_CODES:
+        from .target_tasks import target_record as document_target_record
+        return document_target_record(task,records)
     params = task['params']
     target = next((r for r in reversed(tuple(records)) if r.get('platformId') == params['targetPlatformId']), None)
     if target is None:
@@ -69,6 +84,9 @@ def relative_state(own, target, speed_unit):
 
 
 def progress(task, own=None, target=None, speed_unit='knots'):
+    if task.get('code') in TARGET_CODES:
+        from .target_tasks import progress as document_progress
+        return document_progress(task,own,target,speed_unit)
     params = task['params']
     result = dict(targetPlatformId=params['targetPlatformId'],
                   minFollowingDistanceM=params['minFollowingDistanceM'],
@@ -117,6 +135,9 @@ def forecast(policy, own, speed, course, duration):
 
 def following_action(policy, packet):
     """Compute candidate facts, filter through existing guards, ask Kev to choose."""
+    if packet.get('code') in TARGET_CODES:
+        from .target_tasks import action
+        return action(policy,packet)
     if __package__.startswith('server.'):
         from ..policies.turning import reachable_courses
         from ..policies.kev_policy import round_model_values

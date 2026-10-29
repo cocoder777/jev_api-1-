@@ -1,3 +1,5 @@
+> 新对接文档的 `followMode` / `accompanyMode` 已单独接入，字段、功能及状态格式见 [跟随与伴随接口](FOLLOW_ACCOMPANY.md)。本文保留旧 `targetFollowing` 接口说明。
+
 直线加速至50节默认使用实测控制器响应，安全检查兼顾能力上限；适用范围与开关见[实测响应说明](../MOTION_LIMITS.md)。
 
 运动约束与曲线接口见[统一运动参数](../MOTION_LIMITS.md)。

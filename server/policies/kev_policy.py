@@ -16,22 +16,27 @@ from .waypoint import WaypointPolicy
 from .turning import (DEFAULT_MAX_TURN_RATE_DEG_S, reachable_courses, alignment_courses,
                       ALIGNMENT_ENTER_DEG, ALIGNMENT_EXIT_DEG, ALIGNMENT_PREVIEW_S, ALIGNMENT_MIN_GAIN_DEG)
 from .progress import ProgressSupervisor
-from .speed_profile import plan_speed, passing_braking_safe
+from .speed_profile import plan_speed
+from .moving_obstacles import slow_obstacle_geometry, rejoin_clearance
 from .static_obstacles import (StaticObstacleConfig, StaticNavigator, StaticObstacleBlocked,
                                static_targets, motion_clearance, ActualDistanceMonitor,
                                ACTUAL_DISTANCE_LOGGER, clear_segment)
 from tools.navigation_motion import predict_ground_motion
 from tools.vessel_dynamics import motion_parameters, positive_limit, MAX_TURN_RATE_DEG_S
 if __package__.startswith('server.'):
-    from ..navigation.target_following import FOLLOWING_CODE, following_action
+    from ..navigation.collision import check_collision
+    from ..navigation.target_following import following_action, is_target_task
     from ..navigation.route_rejoin import RouteRejoin, RouteRejoinConfig, refine_courses
     from ..navigation.dynamic_avoidance import AvoidanceConfig
+    from ..navigation.dynamic_avoidance.encounter import encounter_window
     from ..navigation.dynamic_avoidance.kev import (
         DynamicAvoidanceHold, KevDynamicAvoidance, moving_scene, control_check, wire_action, check_models)
 else:
-    from navigation.target_following import FOLLOWING_CODE, following_action
+    from navigation.collision import check_collision
+    from navigation.target_following import following_action, is_target_task
     from navigation.route_rejoin import RouteRejoin, RouteRejoinConfig, refine_courses
     from navigation.dynamic_avoidance import AvoidanceConfig
+    from navigation.dynamic_avoidance.encounter import encounter_window
     from navigation.dynamic_avoidance.kev import (
         DynamicAvoidanceHold, KevDynamicAvoidance, moving_scene, control_check, wire_action, check_models)
 
@@ -81,6 +86,7 @@ class KevPolicy(WaypointPolicy):
             vessel_width_m=static.vessel_width_m, safety_margin_m=static.safety_margin_m,
             acceleration_mps2=static.acceleration_mps2, deceleration_mps2=static.deceleration_mps2),
             max_turn_rate_deg_s=max_turn_rate_deg_s, planning_interval_s=self.duration,
+            control_delay_s=max(2*self.duration,(dynamic_config.control_delay_s if dynamic_config else 0.)),
             acceleration_response=self.execution['acceleration_response'] if 'acceleration_response' in kwargs or dynamic_config is None else dynamic_config.acceleration_response,
             **{key: self.execution[key] if kwargs.get('motion_curves') is not None or dynamic_config is None else getattr(dynamic_config,key)
                for key in ('acceleration_curve','deceleration_curve','turn_rate_curve')})
@@ -146,6 +152,12 @@ class KevPolicy(WaypointPolicy):
             self.local.dynamic_warning_targets = ()
         raw_own = next(r for r in packet['situation'] if r['platformId'] == own_id)
         obs['dynamic_scene'] = self._moving_scene(packet, dict(raw_own,targetCourse=course), packet['situation'])
+        scene=obs['dynamic_scene']
+        if scene and any(t.position_m is not None and math.dist(scene[0].position_m,t.position_m)<=1000.
+                         for t in scene[1]):
+            # Field controller reductions were about 0.98 m/s² after a delay.
+            # Reserve 0.9 for approach planning, without changing the 1.75 cap.
+            obs['execution']['planning_deceleration_mps2']=.9
         return obs
 
     def _record_dynamic_warning(self,warning):
@@ -157,14 +169,14 @@ class KevPolicy(WaypointPolicy):
         if targets!=previous:
             if targets:
                 logging.getLogger(__name__).warning(
-                    'Kev dynamic early warning targets=%s warning_horizon_s=%s action_horizon_s=%s; warning does not veto actions',
+                    'Kev dynamic early warning targets=%s warning_horizon_s=%s action_horizon_s=%s; early CPA activation is assessed separately',
                     targets,self.dynamic_config.warning_horizon_s,self.dynamic_config.action_horizon_s)
             elif previous:
                 logging.getLogger(__name__).info('Kev dynamic early warning cleared targets=%s',previous)
 
     def _moving_scene(self, task, own, records):
         waypoint = (dict(routeLon=own['longitude'], routeLat=own['latitude'])
-                    if task.get('code') == FOLLOWING_CODE else task['params']['planWaypointList'][0])
+                    if is_target_task(task) else task['params']['planWaypointList'][0])
         if (own.get('targetCourse') is None and self.initial_course_deg is not None
                 and own.get('targetSpeed')==0):
             own=dict(own,targetCourse=self.initial_course_deg)
@@ -174,8 +186,11 @@ class KevPolicy(WaypointPolicy):
 
     def _candidate(self,obs,geometry,speed,target_course,distance,limit,previous,target_offset,*,force_static=False):
         """Build one ordinary Kev candidate; dynamic expansion reuses this guard."""
-        if obs.get('passing_braking_guard') and not passing_braking_safe(obs,geometry,speed,target_course):
-            return None
+        gate=obs.get('moving_rejoin_guard')
+        if gate:
+            lateral=math.sin(math.radians(target_course-gate['course_deg']))*gate['side']
+            if lateral < -math.sin(math.radians(1.)):
+                return None
         navigation=obs.get('static_navigation')
         route=obs.get('route_navigation')
         boat=obs['boat'];course=boat['targetCourse']
@@ -194,8 +209,8 @@ class KevPolicy(WaypointPolicy):
             target_heading_error_deg=abs((math.degrees(math.atan2(target_offset[0],target_offset[1]))-target_course+180)%360-180),
             distance_after_m=facts['end_checkpoint_distance_m'],
             distance_after_2_steps_m=facts['same_command_preview']['end_checkpoint_distance_m'],
-            speed_limit_violation=(facts['passing_speed_above_ceiling'] or facts.get('previous_circle_speed_above_ceiling',False)),
-            approach_speed_warning=facts['approach_margin_speed_above_ceiling'],turn_deg=abs(signed_turn))
+            planned_speed_excess=facts['passing_speed_above_ceiling'],
+            planned_braking_warning=facts['approach_margin_speed_above_ceiling'],turn_deg=abs(signed_turn))
         if navigation or route:
             turn=item.pop('turn_deg')
             item['obstacle_clearance_m']=clearance['min_clearance_m']
@@ -260,29 +275,28 @@ class KevPolicy(WaypointPolicy):
         profile = plan_speed(obs, geometry, self.speeds, self.max_turn_rate_deg_s,
                              recovering=progress['mode'] == 'recovery',
                              apply_heading_cap=not bool(navigation),
-                             passing=self.local.dynamic_guard.overtaking.ready_to_pass(obs.get('dynamic_scene')))
-        obs['passing_braking_guard'] = profile.get('passing_braking_guard',False)
+                             detouring=obs.get('moving_detour_budget',False))
         alignment_key = (copy.deepcopy(self.local.task_key),index)
         was_aligning = (getattr(self.local,'heading_alignment_key',None) == alignment_key
                         and getattr(self.local,'heading_alignment_active',False))
         wants_alignment = (abs(relative_bearing) > ALIGNMENT_ENTER_DEG
                            or (was_aligning and abs(relative_bearing) > ALIGNMENT_EXIT_DEG)
                            or (progress['mode'] == 'recovery' and abs(relative_bearing) > ALIGNMENT_EXIT_DEG))
+        if (navigation and navigation.get('moving_target_ids')) or self.local.dynamic_guard.early_targets:
+            wants_alignment = False
         courses = alignment_courses(course,bearing,self.max_turn_rate_deg_s,self.duration) if wants_alignment else ()
         # A moving target alone must not suppress guidance. Check the proposed
         # low-speed envelope before reducing the dynamic planner's speed space.
         # Any risk keeps the original avoidance envelope and maneuver priority.
         alignment_speed = max((v for v in profile['speeds_knots'] if v <= 10.),default=min(self.speeds))
         baseline_speed = max(profile['speeds_knots'])
-        if navigation and navigation['detour'] and not navigation.get('approaching',False):
+        if navigation and navigation['detour'] and not navigation.get('approaching',False) and not navigation.get('moving_target_ids'):
             alignment_speed /= 2
             baseline_speed /= 2
         gate = dict(requested=wants_alignment,active=False,reason='within_heading_tolerance',threat_ids=[])
         scene = obs.get('dynamic_scene')
         if wants_alignment:
             gate['reason'] = 'safe_alignment'
-            if self.local.dynamic_guard.overtaking.active:
-                gate['reason'] = 'dynamic_overtaking'
             if scene is not None:
                 baseline_heading = min(obs['action_space']['courses_deg'],
                     key=lambda c:abs((bearing-c+180)%360-180))
@@ -292,7 +306,8 @@ class KevPolicy(WaypointPolicy):
                 threats = set()
                 risk = False
                 for action in actions:
-                    assessment = check_models(scene,action,self.local.dynamic_guard.action_config,
+                    effective,_=self.local.dynamic_guard.effective_config(scene,action)
+                    assessment = check_models(scene,action,effective,
                                               self.local.dynamic_guard.speed_transition_s)
                     risk |= not assessment.safe
                     threats.update(r.target_id for r in assessment.risks if not r.safe)
@@ -322,8 +337,12 @@ class KevPolicy(WaypointPolicy):
             obs['heading_alignment'] = dict(active=True,preview_duration_s=max(self.duration,ALIGNMENT_PREVIEW_S),
                                             heading_error_deg=abs(relative_bearing))
             obs['action_space']['courses_deg'] = courses
+        if obs.get('moving_rejoin_guard'):
+            if obs['moving_rejoin_guard']['needs_lead']:
+                profile=dict(profile,speeds_knots=[max(self.speeds)],speed_cap_knots=max(self.speeds))
+            profile=dict(profile,phase='moving_corridor')
         speeds = profile['speeds_knots']
-        if navigation and navigation['detour'] and not navigation.get('approaching', False):
+        if navigation and navigation['detour'] and not navigation.get('approaching', False) and not navigation.get('moving_target_ids'):
             # Half the nominal stage cap, never half the already reduced
             # measured speed: repeated decisions must not keep halving it.
             half_cap=max(speeds)/2
@@ -344,11 +363,13 @@ class KevPolicy(WaypointPolicy):
             target_bearing_deg=bearing,
             target_relative_bearing_deg=relative_bearing, target_turn_side=target_side,
             distance_to_target_m=distance, arrival_radius_m=10. if route or (navigation and navigation['detour']) else task['arrival_radius_m'],
-            waypoint_speed_limit_knots=limit / KNOT_MPS,
+            waypoint_planned_speed_knots=limit / KNOT_MPS,
             command_duration_s=self.duration,
             motion_limits={k:v for k,v in obs['execution'].items() if k not in ('speed_transition_time_s','course_transition_time_s')},
             max_turn_deg=min(self.max_turn_rate_deg_s*self.duration, 179.99),
             recent_decisions=list(getattr(self.local, 'history', ())))
+        state['motion_limits']['control_delay_s']=self.dynamic_config.control_delay_s
+        state['motion_limits']['controller_deceleration_mps2']=self.dynamic_config.controller_deceleration_mps2
         if align:
             state['heading_alignment'] = obs['heading_alignment']
             state['max_turn_deg'] = max(abs((value-course+180)%360-180) for value in obs['action_space']['courses_deg'])
@@ -356,9 +377,12 @@ class KevPolicy(WaypointPolicy):
             state['static_avoidance'] = dict(waypoint_xy_m=list(geometry.waypoint_positions[index]),
                 waypoint_arrival_radius_m=task['arrival_radius_m'],
                 collision_radius_m=self.obstacle_config.collision_radius_m,
-                nearby_targets=len(navigation['obstacles']), detour=navigation['detour'])
+                nearby_targets=len(navigation['obstacles']), detour=navigation['detour'],
+                moving_target_ids=navigation.get('moving_target_ids',[]))
         if obs.get('route_rejoin'):
             state['route_rejoin'] = obs['route_rejoin']
+        if obs.get('moving_rejoin_guard'):
+            state['moving_rejoin_guard'] = obs['moving_rejoin_guard']
         previous = index - 1
         if previous < 0 or math.hypot(*geometry.waypoints[previous]) > task['arrival_radius_m']:
             previous = None
@@ -406,7 +430,12 @@ class KevPolicy(WaypointPolicy):
             if improving:
                 criteria = improving
         if not criteria:
-            raise StaticObstacleBlocked('当前可达速度和航向均无法满足静态障碍物避碰及制动距离')
+            if obs.get('moving_obstacle_ids') or obs.get('moving_rejoin_guard'):
+                raise DynamicAvoidanceHold(dict(status='blocked',
+                    targets=len(obs['dynamic_scene'][1]),threat_ids=obs.get('moving_obstacle_ids',[]),
+                    horizon_s=self.dynamic_config.action_horizon_s,
+                    reason='当前没有同时满足移动走廊和避碰约束的动作；等待新态势重新规划'))
+            raise StaticObstacleBlocked('当前候选动作均未通过静态障碍物轨迹及避碰制动检查')
         dynamic=None
         if obs.get('dynamic_scene') is not None:
             cap=max(item['speed_knots'] for item in criteria.values())
@@ -428,13 +457,21 @@ class KevPolicy(WaypointPolicy):
                             expanded[f'speed_{speed:g}__heading_{j:02d}']=item
                 return expanded
             try:
-                criteria,dynamic=self.local.dynamic_guard.filter(obs['dynamic_scene'],criteria,expand=expand)
+                criteria,dynamic=self.local.dynamic_guard.filter(obs['dynamic_scene'],criteria,expand=expand,
+                    prefer_speed=bool(obs.get('moving_obstacle_ids')))
             finally:
                 self._record_dynamic_warning(self.local.dynamic_guard.last_warning)
         else:
             self.local.dynamic_guard.planner.reset()
-            self.local.dynamic_guard.overtaking.reset()
+            self.local.dynamic_guard.early_targets.clear()
             self._record_dynamic_warning(None)
+        encounter=(dynamic or {}).get('early_avoidance') or {}
+        encounter_mode=(encounter.get('phase','clear'),tuple(encounter.get('target_ids',())))
+        if encounter_mode!=getattr(self.local,'encounter_mode',None):
+            logging.getLogger(__name__).info('Kev encounter phase=%s targets=%s horizon_s=%s trigger=%s encounters=%s',
+                encounter_mode[0],encounter_mode[1],encounter.get('effective_horizon_s'),
+                encounter.get('trigger'),encounter.get('encounters',[]))
+            self.local.encounter_mode=encounter_mode
         self.local.dynamic_status=dynamic['status'] if dynamic else 'clear'
         self.local.dynamic_details=dynamic
         if dynamic:
@@ -443,13 +480,12 @@ class KevPolicy(WaypointPolicy):
                 state['route_rejoin'] = dict(state.get('route_rejoin', {}),
                     waypoint_index=index, mode='avoiding', stable_cycles=0)
             state['dynamic_avoidance']={key:dynamic[key] for key in ('status','targets','threat_ids','horizon_s')}
-            if dynamic.get('overtaking'):
-                state['dynamic_avoidance']['overtaking']=dynamic['overtaking']
+            state['dynamic_avoidance']['early_avoidance']=dynamic.get('early_avoidance')
             state['speeds_knots']=sorted({item['speed_knots'] for item in criteria.values()})
             state['speed_profile']['speed_cap_knots']=max(state['speeds_knots'])
             state['max_turn_deg']=max(item['turn_deg'] for item in criteria.values())
         instructions = (
-            'Use motion_limits.acceleration_response: measured_0_50kn is nominal straight acceleration to a 50-knot target, not maximum capability; bounded and other maneuvers use physical limits. Reach the current waypoint circle. Respect speed limits. Physical acceleration/braking and angular acceleration are bounded: brake early; target course is not reached instantly. Avoid reversing an ongoing turn. Choose a maneuver on target_turn_side; '
+            'Use motion_limits.acceleration_response: measured_0_50kn is nominal straight acceleration to a 50-knot target, not maximum capability; bounded and other maneuvers use physical limits. Reach the current waypoint circle. waypoint_planned_speed_knots is a soft speed reference, not a hard limit within the arrival circle. Prefer smooth early adjustment toward it when compatible with safe obstacle clearance and useful turning. Residual speed above the plan is a warning, not a collision or task failure. Physical acceleration/braking and angular acceleration are bounded: brake early; target course is not reached instantly. Avoid reversing an ongoing turn. Choose a maneuver on target_turn_side; '
             'straight when ahead. Prefer smaller target heading error, '
             'then smaller forecast distance and less turning. Keep straight when aligned. '
             'A target behind the boat may require turning while distance initially increases; avoid repeated reversals.')
@@ -462,15 +498,20 @@ class KevPolicy(WaypointPolicy):
                 'Heading commands are sustained targets; actual yaw and angular acceleration remain bounded. '
                 'Keep the useful turn until aligned, then accelerate. ' + instructions)
         if navigation:
-            instructions = ('Follow the safe guidance target around static obstacles. '
+            instructions = ('Follow the safe guidance target around obstacles, including slower moving targets. Continue toward the guidance point rather than matching an obstacle speed. '
                             'Original waypoint arrival is checked externally. ' + instructions)
         if route:
             instructions = ('Follow the forward guidance target to rejoin the original route segment, '
                             'then follow that line. Original waypoint arrival is checked externally. ' + instructions)
-        if dynamic and dynamic.get('overtaking'):
-            instructions=('Pass the slower co-directional target using the selected safe side. '
-                          'Build lateral clearance, maintain relative forward progress until the target is astern, '
-                          'then rejoin the route. Do not settle into speed matching when a safe passing-progress choice exists. '+instructions)
+        if obs.get('moving_rejoin_guard'):
+            instructions=('Keep the current safe side and follow the forward corridor target. '
+                          'The moving corridor is not clear for merging; do not turn inward to rejoin yet. '+instructions)
+        if dynamic and dynamic.get('early_avoidance',{}).get('active'):
+            early=dynamic['early_avoidance']
+            instructions=(('Encounter preparation: preserve the nominal route heading and adjust speed gently. '
+                           if early['phase']=='prepare' else
+                           'Encounter maneuver: keep the selected safe avoidance side until the oncoming target has passed. ')
+                          +'Only certified safe candidates are offered; stopping on the encounter path is not assumed safe. '+instructions)
         if dynamic and dynamic['status']=='avoiding':
             instructions=('Follow the safe dynamic avoidance side; slow when necessary. '
                           'Static guidance remains the route reference. '+instructions)
@@ -493,7 +534,7 @@ class KevPolicy(WaypointPolicy):
             raise RuntimeError(f'Local Kev request failed ({self.endpoint}): {exc}') from exc
 
     def __call__(self, packet):
-        if packet.get('code') == FOLLOWING_CODE:
+        if is_target_task(packet):
             return following_action(self, packet)
         obs = self.observation(packet)
         self.local.guidance_task_id = packet.get('id')
@@ -512,21 +553,56 @@ class KevPolicy(WaypointPolicy):
         geometry = WaypointGeometry(obs)
         if self.local.dynamic_status in ('avoiding','blocked','insufficient_data'):
             self.local.supervisor=ProgressSupervisor(self.progress_config)
+        moving_obstacles, moving_ids, lateral_clear = slow_obstacle_geometry(
+            obs.get('dynamic_scene'), geometry, max(self.speeds)*KNOT_MPS,
+            self.local.dynamic_guard.config, initial_position=self.local.route_rejoin.start_xy_m)
+        obs['moving_obstacle_ids'] = moving_ids
+        planning_obstacles = obs['static_obstacles'] + moving_obstacles
+        obs['moving_detour_budget'] = bool(moving_obstacles and lateral_clear)
         approach_profile = plan_speed(obs, geometry, self.speeds, self.max_turn_rate_deg_s,
             recovering=self.local.supervisor.mode == 'recovery',
-            passing=self.local.dynamic_guard.overtaking.ready_to_pass(obs.get('dynamic_scene')))
-        navigation = self.local.navigator.guide(geometry, obs['static_obstacles'],
-            boat=obs['boat'], execution=obs['execution'], duration=self.duration,
-            speed_knots=max(approach_profile['speeds_knots']))
+            detouring=obs.get('moving_detour_budget',False))
+        geometry_blocked = None
+        try:
+            navigation = self.local.navigator.guide(geometry, planning_obstacles,
+                boat=obs['boat'], execution=obs['execution'], duration=self.duration,
+                speed_knots=max(approach_profile['speeds_knots']))
+        except StaticObstacleBlocked as exc:
+            if not moving_obstacles:
+                raise
+            # A moving corridor may temporarily cover the waypoint. Recheck
+            # genuine static failures, then let the dynamic guard select a
+            # safe maneuver rather than stopping solely on a conservative
+            # geometric occupancy or terminating the task.
+            navigation = self.local.navigator.guide(geometry, obs['static_obstacles'],
+                boat=obs['boat'], execution=obs['execution'], duration=self.duration,
+                speed_knots=max(approach_profile['speeds_knots']))
+            geometry_blocked = str(exc)
         if navigation:
+            navigation['moving_target_ids'] = moving_ids
             obs['static_navigation'] = navigation
+        merge_guard = rejoin_clearance(obs.get('dynamic_scene'), geometry,
+            self.local.dynamic_guard.config, initial_position=self.local.route_rejoin.start_xy_m,
+            entry_speed_mps=obs['task']['planWaypointList'][index]['routeSpeed'],
+            braking_mps2=obs['execution'].get('planning_deceleration_mps2',self.dynamic_config.deceleration_mps2))
+        if merge_guard:
+            obs['moving_rejoin_guard'] = merge_guard
+            self.local.route_rejoin.activate()
+            if navigation is None:
+                navigation = dict(obstacles=moving_obstacles,slow=False,approaching=False)
+            navigation.update(detour=True,approaching=False,moving_target_ids=[t['id'] for t in merge_guard['targets']],
+                guidance_xy_m=merge_guard['guidance_xy_m'],path=[merge_guard['guidance_xy_m']])
+            obs['static_navigation']=navigation
+            # A sustained parallel target must remain available even when
+            # telemetry still contains an inward turn from the last command.
+            obs['action_space']['courses_deg'][0] = merge_guard['course_deg']
         static_detour = bool(navigation and navigation['detour'])
         if static_detour and not navigation.get('approaching', False):
             self.local.route_rejoin.activate()
         route = self.local.route_rejoin.guide(geometry, obs['boat']['targetSpeed'] * KNOT_MPS,
             obs['boat']['targetCourse'],
-            lambda a, b: clear_segment(a, b, obs['static_obstacles'], self.obstacle_config.path_padding_m),
-            avoiding=static_detour or self.local.dynamic_guard.overtaking.active)
+            lambda a, b: clear_segment(a, b, planning_obstacles, self.obstacle_config.path_padding_m),
+            avoiding=static_detour)
         if route:
             obs['route_rejoin'] = route
             if route['guidance_xy_m'] is not None:
@@ -558,9 +634,9 @@ class KevPolicy(WaypointPolicy):
             # a newly arriving threat must not turn yielding into a stall.
             speed_profile=plan_speed(obs,geometry,self.speeds,self.max_turn_rate_deg_s,
                 apply_heading_cap=not bool(navigation),
-                             passing=self.local.dynamic_guard.overtaking.ready_to_pass(obs.get('dynamic_scene')))
+                             detouring=obs.get('moving_detour_budget',False))
             nominal=max(speed_profile['speeds_knots'])
-            if navigation and navigation['detour'] and not navigation.get('approaching',False):
+            if navigation and navigation['detour'] and not navigation.get('approaching',False) and not navigation.get('moving_target_ids'):
                 nominal/=2
             heading=min(obs['action_space']['courses_deg'],key=lambda c:abs((bearing-c+180)%360-180))
             if self.local.dynamic_guard.needs_avoidance(obs['dynamic_scene'],
@@ -618,6 +694,8 @@ class KevPolicy(WaypointPolicy):
             instructions=payload['questions']['action']['instructions'], result=result,
             turn_diagnostics=dict(self.local.turn_diagnostics),
             alignment_gate=obs.get('heading_alignment_gate'))
+        if geometry_blocked:
+            self.local.last_decision['moving_geometry_fallback'] = geometry_blocked
         if navigation:
             self.local.last_decision['static_path_xy_m'] = navigation['path']
         if self.local.dynamic_details:
@@ -628,18 +706,18 @@ class KevPolicy(WaypointPolicy):
             distance_m=round(distance, 2), chosen_speed_knots=speed, chosen_course_deg=course))
         logging.getLogger(__name__).info(
             'Kev decision task=%s target_index=%d choice=%s candidates=%d '
-            'speed_knots=%.2f course_deg=%.2f speed_phase=%s speed_cap_knots=%.2f dynamic_status=%s dynamic_threat_ids=%s overtaking=%s inference_s=%.6f',
+            'speed_knots=%.2f course_deg=%.2f speed_phase=%s speed_cap_knots=%.2f dynamic_status=%s dynamic_threat_ids=%s inference_s=%.6f',
             packet.get('id'),index,choice,len(criteria),speed,course,
             payload['state']['speed_profile']['phase'],payload['state']['speed_profile']['speed_cap_knots'],self.local.dynamic_status,
             (self.local.dynamic_details or {}).get('threat_ids',[]),
-            (self.local.dynamic_details or {}).get('overtaking'),self.local.last_decision['inference_s'])
+            self.local.last_decision['inference_s'])
         return speed*(KNOT_MPS if self.speed_unit=='mps' else 1.),course
 
     def _static_scene(self, task, own, records, *, frame=None):
         from types import SimpleNamespace
         from tools.waypoint_geometry import LocalFrame
         points = ([dict(routeLon=own['longitude'], routeLat=own['latitude'])]
-                  if task.get('code') == FOLLOWING_CODE else task['params']['planWaypointList'])
+                  if is_target_task(task) else task['params']['planWaypointList'])
         frame = frame or LocalFrame(points)
         boat = dict(own)
         if self.speed_unit == 'mps':
@@ -647,22 +725,25 @@ class KevPolicy(WaypointPolicy):
             records = [dict(r, targetSpeed=r['targetSpeed']/KNOT_MPS)
                        if isinstance(r.get('targetSpeed'), (int, float)) else r for r in records]
         obstacles = static_targets(records, task['params']['platCode'], frame, self.obstacle_config)
-        geometry = SimpleNamespace(boat_position=frame.project(own['longitude'], own['latitude']))
+        geometry = SimpleNamespace(boat_position=frame.project(own['longitude'], own['latitude']),frame=frame)
         return geometry, boat, obstacles
 
     def validate_position(self, task, own, records):
-        """Never count an arrival inside an already occupied collision region."""
-        geometry, _, obstacles = self._static_scene(task, own, records)
-        for obstacle in obstacles:
-            if math.dist(geometry.boat_position, obstacle['xy']) <= obstacle['radius_m']:
-                raise StaticObstacleBlocked(f"本艇已处于静态目标{obstacle['id']}的避碰范围内")
+        """End the task on actual static or fresh moving safety-region entry."""
+        geometry, _, _ = self._static_scene(task, own, records)
+        check_collision(geometry.boat_position,geometry.frame,records,
+            own_id=task['params']['platCode'],speed_unit=self.speed_unit,
+            stationary_speed_knots=self.obstacle_config.stationary_speed_knots,
+            static_radius_m=self.obstacle_config.collision_radius_m,
+            dynamic_radius_m=self.dynamic_config.safe_distance_m,
+            max_target_age_s=self.dynamic_config.max_target_age_s)
 
     def create_distance_monitor(self, logger, task, max_gap_s):
         return ActualDistanceMonitor(ACTUAL_DISTANCE_LOGGER, task, max_gap_s)
 
     def record_actual_distance(self, monitor, task, own, records):
         frame = None
-        if task.get('code') == FOLLOWING_CODE:
+        if is_target_task(task):
             from tools.waypoint_geometry import LocalFrame
             if not hasattr(monitor, 'following_frame'):
                 monitor.following_frame = LocalFrame([dict(routeLon=own['longitude'], routeLat=own['latitude'])])
@@ -690,3 +771,43 @@ class KevPolicy(WaypointPolicy):
         speed_knots=speed/KNOT_MPS if self.speed_unit=='mps' else speed
         return control_check(scene,speed_knots,course,self.dynamic_config,
             self.execution['speed_transition_time_s'],self.speed_unit)
+
+    def find_safe_escape(self, task, own, records, requested_speed, requested_course):
+        """Small deterministic fallback search; never emit a failed candidate.
+
+        Used by the sender only after a latest-snapshot veto, without model I/O.
+        The caller rechecks any result against another fresh snapshot.
+        """
+        factor=KNOT_MPS if self.speed_unit=='mps' else 1.
+        current=own['targetSpeed']/factor
+        cap=min(self.max_speed,max(current,requested_speed/factor,min(10.,self.max_speed)))
+        if is_target_task(task) and task['params'].get('maxSpeed',0.)>0:
+            cap=min(cap,task['params']['maxSpeed']/factor)
+        course=own.get('targetCourse')
+        if not isinstance(course,(int,float)) or not math.isfinite(course):
+            return None
+        courses=[course+offset for offset in (30.,60.,90.,-30.,-60.,-90.,0.)]
+        courses.append(requested_course)
+        scene=self._moving_scene(task,own,records)
+        if scene is None:
+            return None
+        _,encounters=encounter_window(scene,wire_action(requested_speed/factor,requested_course,self.speed_unit),self.dynamic_config)
+        options=[]
+        if encounters and all(t['phase']=='prepare' for t in encounters):
+            options.extend((speed,requested_course) for speed in (cap,cap*.85,cap*.7))
+        options.extend((speed,heading) for speed in sorted({cap,cap*.5},reverse=True) for heading in courses)
+        deadline=time.monotonic()+min(.25,self.duration*.25)
+        for speed,heading in options:
+            if time.monotonic()>=deadline:
+                return None
+            speed_wire=round(speed*factor,2)
+            if is_target_task(task) and task['params'].get('maxSpeed',0.)>0:
+                speed_wire=min(speed_wire,math.floor(task['params']['maxSpeed']*100.+1e-8)/100.)
+            heading_wire=round(heading%360,2)%360
+            static=self.validate_control(task,own,records,speed_wire,heading_wire)
+            if not static['safe']:
+                continue
+            dynamic=self.validate_dynamic_control(task,own,records,speed_wire,heading_wire)
+            if dynamic['safe']:
+                return speed_wire,heading_wire
+        return None

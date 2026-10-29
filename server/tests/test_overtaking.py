@@ -1,69 +1,75 @@
-"""Passing needs relative progress and clearance, beyond collision-free following."""
+"""Slow moving targets use the same geometric bypass as ordinary obstacles."""
+from types import SimpleNamespace
 import unittest
-from server.navigation.dynamic_avoidance import Action,AvoidanceConfig,Target,Vessel
-from server.navigation.dynamic_avoidance.overtaking import OvertakingProgress
+import subprocess
+import sys
+from pathlib import Path
+from unittest.mock import patch
+from server.policies.kev_policy import KevPolicy
+from server.policies.static_obstacles import StaticObstacleBlocked
+from server.tests.test_kev_dynamic_avoidance import moving_packet
+from server.tests.test_static_obstacles import choose_heading
+from server.navigation.dynamic_avoidance import AvoidanceConfig,Target,Vessel
+from server.policies.moving_obstacles import slow_obstacle_geometry
 from server.experiments.kev_dynamic_avoidance import run_scene
 from tools.waypoint_geometry import KNOT_MPS
 
 
-class OvertakingTests(unittest.TestCase):
-    def test_safe_port_progress_when_starboard_has_no_safe_candidates(self):
-        progress=OvertakingProgress(AvoidanceConfig())
-        own=Vessel((0.,0.),20*KNOT_MPS,90.)
-        target=Target(4001,(250.,0.),9.6*KNOT_MPS,90.)
-        self.assertEqual(progress.update(own,(target,),Action(50*KNOT_MPS,90.),(4001,)),target)
-        options={'left':{'speed_knots':30.}}
-        self.assertEqual(progress.select(own,target,options,{'left':Action(30*KNOT_MPS,60.)}),options)
-        self.assertEqual(progress.details['side'],'port')
+class SlowObstacleTests(unittest.TestCase):
+    def test_direct_service_script_import_without_repository_on_pythonpath(self):
+        root=Path(__file__).resolve().parents[2]
+        script=("import sys; "
+                f"sys.path[:0]={[str(root/'server'),str(root/'jev_api')]!r}; "
+                "from policies.kev_policy import KevPolicy; KevPolicy()")
+        result=subprocess.run([sys.executable,'-I','-c',script],cwd='/tmp',
+                              capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stderr)
 
-    def test_no_safe_relative_progress_retains_yielding_choices(self):
-        progress=OvertakingProgress(AvoidanceConfig())
-        own=Vessel((0.,0.),9.6*KNOT_MPS,90.)
-        target=Target(4001,(250.,0.),9.6*KNOT_MPS,90.)
-        progress.update(own,(target,),Action(50*KNOT_MPS,90.),(4001,))
-        safe={'match':{'speed_knots':9.6}}
-        self.assertEqual(progress.select(own,target,safe,{'match':Action(9.6*KNOT_MPS,90.)}),safe)
-        self.assertEqual(progress.details['phase'],'waiting_safe_progress')
+    def test_geometry_uses_motion_and_releases_when_safely_astern(self):
+        geo=SimpleNamespace(next_index=0,waypoint_positions=[(3000.,0.)])
+        target=Target(4001,(300.,0.),9.6*KNOT_MPS,90.)
+        config=AvoidanceConfig()
+        obstacles,ids,_=slow_obstacle_geometry((Vessel((0.,0.),20.,90.),(target,)),geo,25.,config)
+        self.assertEqual(ids,[4001]);self.assertEqual(len(obstacles),3)
+        self.assertAlmostEqual(obstacles[-1]['xy'][0],300+20*target.speed_mps)
+        self.assertEqual(slow_obstacle_geometry((Vessel((600.,0.),20.,90.),(target,)),geo,25.,config,
+                                              initial_position=(0.,0.)),([],[],False))
 
-    def test_near_equal_speed_or_opposing_target_does_not_start_pass(self):
-        for speed,course in ((50.,90.),(9.6,270.)):
-            progress=OvertakingProgress(AvoidanceConfig())
-            self.assertIsNone(progress.update(Vessel((0.,0.),20*KNOT_MPS,90.),
-                (Target(4001,(300.,0.),speed*KNOT_MPS,course),),Action(50*KNOT_MPS,90.),(4001,)))
+    def test_unreliable_far_fast_and_opposing_targets_stay_in_dynamic_guard(self):
+        geo=SimpleNamespace(next_index=0,waypoint_positions=[(3000.,0.)])
+        for target in (Target(1,(300.,0.),25.,90.),Target(1,(300.,0.),5.,270.),
+                       Target(1,(20000.,0.),5.,90.),Target(1,(300.,0.),5.,90.,30.),
+                       Target(1,(300.,0.),None,None)):
+            self.assertEqual(slow_obstacle_geometry((Vessel((0.,0.),20.,90.),(target,)),geo,25.,AvoidanceConfig()),([],[],False))
 
-    def test_completed_pass_releases_and_missing_target_cancels(self):
-        progress=OvertakingProgress(AvoidanceConfig());target=Target(4001,(200.,0.),5.,90.)
-        progress.update(Vessel((0.,0.),10.,90.),(target,),Action(20.,90.),(4001,))
-        self.assertTrue(progress.active)
-        self.assertIsNone(progress.update(Vessel((400.,0.),20.,90.),(target,),Action(20.,90.),()))
-        self.assertFalse(progress.active)
-        progress.update(Vessel((0.,0.),10.,90.),(target,),Action(20.,90.),(4001,))
-        progress.update(Vessel((0.,0.),10.,90.),(),Action(20.,90.),())
-        self.assertFalse(progress.active)
+    def test_moving_geometry_blockage_uses_safe_dynamic_fallback(self):
+        policy=KevPolicy(client=choose_heading)
+        packet=moving_packet(x=300.,speed=9.6,course=90.)
+        with patch('server.policies.kev_policy.StaticNavigator.guide',
+                   side_effect=[StaticObstacleBlocked('temporary occupied corridor'),None]):
+            speed,heading=policy(packet)
+        self.assertGreater(speed,0.)
+        self.assertIn('moving_geometry_fallback',policy.local.last_decision)
+        self.assertTrue(policy.validate_dynamic_control(packet,packet['situation'][0],packet['situation'],speed,heading)['safe'])
 
-    def test_two_slow_targets_are_both_passed(self):
-        result=run_scene('passing_two',
-            (Target(4001,(300.,0.),9.6*KNOT_MPS,90.),
-             Target(4003,(700.,-30.),9.6*KNOT_MPS,98.)),
-            steps=120,mock=True,response='physical',initial_speed_knots=50.)
-        self.assertGreater(result['min_clearance_m']['dynamic'],0.)
-        for target_id in (4001,4003):
-            self.assertTrue(any(row['own']['position_m'][0]-next(t for t in row['targets']
-                if t['target_id']==target_id)['position_m'][0]>150. for row in result['samples']))
-
-    def test_closed_loop_passes_slow_target_then_rejoins(self):
-        for initial in (20.,50.):
-            with self.subTest(initial=initial):
-                result=run_scene('passing_progress',
-                    (Target(4001,(300.,0.),9.6*KNOT_MPS,90.),),steps=130,mock=True,
-                    response='physical',initial_speed_knots=initial)
+    def test_closed_loop_direct_bypass_and_route_return(self):
+        for initial,targets in ((20.,(Target(4001,(300.,0.),9.6*KNOT_MPS,90.),)),
+                                (50.,(Target(4001,(300.,0.),9.6*KNOT_MPS,90.),)),
+                                (50.,(Target(4001,(300.,0.),9.6*KNOT_MPS,90.),
+                                      Target(4003,(700.,-30.),9.6*KNOT_MPS,98.)))):
+            with self.subTest(initial=initial,count=len(targets)):
+                result=run_scene('direct_bypass',targets,steps=120,mock=True,response='physical',initial_speed_knots=initial)
                 self.assertGreater(result['min_clearance_m']['dynamic'],0.)
-                samples=result['samples']
-                passing=[r for r in samples if r['own']['position_m'][0]-r['targets'][0]['position_m'][0]>120.]
-                self.assertTrue(passing,'Safe speed matching is not completed overtaking')
-                self.assertLess(abs(samples[-1]['own']['position_m'][1]),10.)
-                phases={r['decision'].get('dynamic_avoidance',{}).get('overtaking',{}).get('phase') for r in samples}
-                self.assertIn('move_out',phases);self.assertIn('pass',phases)
+                for target in targets:
+                    self.assertTrue(any(row['own']['position_m'][0]-next(t for t in row['targets']
+                        if t['target_id']==target.target_id)['position_m'][0]>150. for row in result['samples']))
+                self.assertLess(abs(result['samples'][-1]['own']['position_m'][1]),10.)
+                detours=[row for row in result['samples'] if row['decision'].get('state',{}).get('static_avoidance',{}).get('moving_target_ids')]
+                self.assertTrue(detours)
+                self.assertTrue(all(row['command']['speed_knots'] > 9.6 for row in detours))
+                self.assertTrue(all('overtaking' not in row['decision'].get('dynamic_avoidance',{}) for row in result['samples']))
+                self.assertTrue(all(row['decision']['state']['speed_profile']['phase'] not in
+                    ('static_half_speed','heading_alignment') for row in detours))
 
 
 if __name__=='__main__':unittest.main()

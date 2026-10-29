@@ -4,10 +4,9 @@ import math
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
-from server.policies.speed_profile import plan_speed,passing_braking_safe
+from server.policies.speed_profile import plan_speed,detour_braking_safe
 from server.policies.kev_policy import KevPolicy
 from server.navigation.dynamic_avoidance import AvoidanceConfig,Action,Vessel,Target
-from server.navigation.dynamic_avoidance.overtaking import OvertakingProgress
 from server.experiments.field_tasks import load_task,_telemetry
 from server.tests.test_heading_alignment import choose_alignment
 from tools.waypoint_geometry import KNOT_MPS,xy,circle_interval
@@ -25,29 +24,22 @@ class PassingBudgetTests(unittest.TestCase):
     def test_side_by_side_pass_uses_available_braking_distance(self):
         obs,geo=observation()
         normal=plan_speed(obs,geo,[10.,20.,30.,40.,50.],12.)
-        passing=plan_speed(obs,geo,[10.,20.,30.,40.,50.],12.,passing=True)
+        passing=plan_speed(obs,geo,[10.,20.,30.,40.,50.],12.,detouring=True)
         self.assertEqual(normal['speed_cap_knots'],10.)
         self.assertGreater(passing['speed_cap_knots'],10.)
-        self.assertTrue(passing['passing_braking_guard'])
+        self.assertTrue(passing['detour_braking_guard'])
         near,near_geo=observation(distance=105.)
-        self.assertEqual(plan_speed(near,near_geo,[10.,20.,30.,40.,50.],12.,passing=True)['speed_cap_knots'],10.)
+        self.assertEqual(plan_speed(near,near_geo,[10.,20.,30.,40.,50.],12.,detouring=True)['speed_cap_knots'],10.)
         obs['execution']['deceleration_curve']=((0.,.5),)
-        self.assertLess(plan_speed(obs,geo,[10.,20.,30.,40.,50.],12.,passing=True)['speed_cap_knots'],passing['speed_cap_knots'])
+        self.assertLess(plan_speed(obs,geo,[10.,20.,30.,40.,50.],12.,detouring=True)['speed_cap_knots'],passing['speed_cap_knots'])
 
     def test_braking_tail_rejects_late_acceleration_toward_circle(self):
         obs,geo=observation(distance=250.)
-        self.assertFalse(passing_braking_safe(obs,geo,50.,90.))
-        self.assertTrue(passing_braking_safe(obs,geo,10.,90.))
+        self.assertFalse(detour_braking_safe(obs,geo,50.,90.))
+        self.assertTrue(detour_braking_safe(obs,geo,10.,90.))
         geo.waypoints.append((0.,0.));obs['task']['planWaypointList'].append(dict(routeSpeed=10.*KNOT_MPS))
         obs['boat']['targetSpeed']=9.6
-        self.assertFalse(passing_braking_safe(obs,geo,20.,90.))
-
-    def test_parallel_phase_excludes_slow_forward_gain_when_better_action_exists(self):
-        progress=OvertakingProgress(AvoidanceConfig());progress.target_id=4001;progress.side=1
-        own=Vessel((0.,-100.),10*KNOT_MPS,90.);target=Target(4001,(10.,0.),9.6*KNOT_MPS,90.)
-        safe={'parallel':{},'wiggle':{}}
-        selected=progress.select(own,target,safe,dict(parallel=Action(10*KNOT_MPS,90.),wiggle=Action(10*KNOT_MPS,80.)))
-        self.assertEqual(set(selected),{'parallel'})
+        self.assertFalse(detour_braking_safe(obs,geo,20.,90.))
 
     def test_recorded_p2_approach_passes_without_circle_speed_violation(self):
         fixture=json.loads((Path(__file__).parent/'fixtures/passing_near_p2.json').read_text())
@@ -65,7 +57,6 @@ class PassingBudgetTests(unittest.TestCase):
             return result
         own=_telemetry(origin,x,y,speed,course,1010)
         policy.observation(dict(task,situation=[own,*records(0)]))
-        policy.local.dynamic_guard.overtaking.target_id=4001;policy.local.dynamic_guard.overtaking.side=1
         passing_caps=[];p2_arrival=None;first_ahead=None
         for tick in range(65):
             own=_telemetry(origin,x,y,speed,course,1010);own['_turn_rate_deg_s']=omega
@@ -73,7 +64,7 @@ class PassingBudgetTests(unittest.TestCase):
             requested,heading=policy(packet)
             self.assertTrue(policy.validate_dynamic_control(packet,own,packet['situation'],requested,heading)['safe'])
             profile=policy.local.last_decision['state']['speed_profile']
-            if profile['phase']=='passing_approach':passing_caps.append(profile['speed_cap_knots'])
+            if profile['phase'] in ('detour_approach','moving_corridor'):passing_caps.append(profile['speed_cap_knots'])
             if policy.current_route()>=2 and p2_arrival is None:p2_arrival=tick
             t=fixture['targets'][0];h=math.radians(t['course_deg'])
             target_xy=(t['position_xy_m'][0]+t['speed_mps']*math.sin(h)*(tick+t['age_s']),t['position_xy_m'][1]+t['speed_mps']*math.cos(h)*(tick+t['age_s']))

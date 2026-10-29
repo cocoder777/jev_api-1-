@@ -95,3 +95,6 @@ python -m unittest discover -s server/tests -v
 支持 `--backend julia` 切换到本地 Julia-1。安装、结构、离线模拟、测试结果和原现场地址记录见 [LOCAL_MODELS.md](LOCAL_MODELS.md)。
 
 Kev-4B 独立后端使用五档速度、航点前瞻、16航向和进展监督，通过本机官方推理服务接入。安装、启动和测试见 [KEV.md](KEV.md)。
+
+
+当前已按对接文档新增 `followMode`（沿目标轨迹尾随）与 `accompanyMode`（目标体坐标系位置带伴随），统一使用 `targetPlatCode`，按不同任务回报对应业务状态；保留旧 `targetFollowing`。接入字段、持续任务/停止语义、航速上限及请求示例见 [跟随与伴随接口](navigation/FOLLOW_ACCOMPANY.md)。本轮未运行本地测试或仿真，需重启服务并联调确认。

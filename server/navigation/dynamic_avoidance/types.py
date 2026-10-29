@@ -78,6 +78,9 @@ class AvoidanceConfig:
     horizon_s: float = 60.
     warning_horizon_s: float = 60.
     action_horizon_s: float = 10.
+    control_delay_s: float = 0.
+    controller_deceleration_mps2: float = .9
+    early_avoidance_margin_s: float = 5.
     dt_s: float = .2
     obstacle_radius_m: float = 80.
     vessel_length_m: float = 11.6
@@ -102,7 +105,7 @@ class AvoidanceConfig:
     continuity_slack_deg: float = 15.
 
     def __post_init__(self):
-        zero_allowed = {'safety_margin_m', 'uncertainty_mps', 'max_target_age_s',
+        zero_allowed = {'control_delay_s', 'safety_margin_m', 'uncertainty_mps', 'max_target_age_s',
                         'clearance_epsilon_m', 'continuity_slack_deg'}
         for name, value in self.__dict__.items():
             if name == 'acceleration_response':
@@ -116,6 +119,7 @@ class AvoidanceConfig:
                 raise ValueError(f'invalid {name}')
         for name, maximum in (('acceleration_mps2', 1.46), ('deceleration_mps2', 1.75), ('max_turn_rate_deg_s', 12.), ('max_turn_acceleration_deg_s2', 4.)):
             positive_limit(name, getattr(self, name), maximum)
+        positive_limit('controller_deceleration_mps2',self.controller_deceleration_mps2,1.75)
         if self.heading_step_deg > 180:
             raise ValueError('heading_step_deg must be <= 180')
         if self.action_horizon_s > self.warning_horizon_s:

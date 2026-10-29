@@ -127,7 +127,9 @@ class HeadingAlignmentTests(unittest.TestCase):
         # Target on the desired path, approaching at 20 knots.
         packet['situation'][1].update(targetSpeed=20.,targetCourse=180.)
         policy=KevPolicy(client=choose_alignment)
-        policy(packet)
+        # Isolate the alignment risk gate from geometric obstacle guidance.
+        with patch('server.policies.kev_policy.slow_obstacle_geometry',return_value=([],[],False)):
+            policy(packet)
         gate=policy.local.last_decision['alignment_gate']
         self.assertTrue(gate['requested'])
         self.assertFalse(gate['active'])
@@ -138,10 +140,12 @@ class HeadingAlignmentTests(unittest.TestCase):
     def test_gate_rechecks_risk_after_target_moves_away(self):
         packet=self.site_switch_packet(distance_m=100.)
         policy=KevPolicy(client=choose_alignment)
-        policy(packet)
+        with patch('server.policies.kev_policy.slow_obstacle_geometry',return_value=([],[],False)):
+            policy(packet)
         self.assertEqual(policy.local.last_decision['alignment_gate']['reason'],'dynamic_risk')
         packet['situation'][1]['latitude']+=.2
-        policy(packet)
+        with patch('server.policies.kev_policy.slow_obstacle_geometry',return_value=([],[],False)):
+            policy(packet)
         self.assertTrue(policy.local.last_decision['alignment_gate']['active'])
 
     def test_guidance_log_explains_target_and_alignment_gate(self):

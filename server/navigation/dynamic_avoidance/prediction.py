@@ -25,6 +25,23 @@ class Trajectory:
 
 def forecast(own, action, config, *, speed_transition_time_s=None, horizon_s=None):
     """Hold action for the forecast, then simulate a time-aligned braking tail."""
+    if config.control_delay_s:
+        delay=config.control_delay_s
+        prefix=predict_ground_motion(own.speed_mps,own.course_deg,own.speed_mps,
+            own.course_deg+own.turn_rate_deg_s*delay,0.,0.,delay,dt=config.dt_s,
+            acceleration_mps2=config.acceleration_mps2,deceleration_mps2=config.deceleration_mps2,
+            max_turn_rate_deg_s=config.max_turn_rate_deg_s,
+            max_turn_acceleration_deg_s2=config.max_turn_acceleration_deg_s2,
+            initial_turn_rate_deg_s=own.turn_rate_deg_s,acceleration_curve=config.acceleration_curve,
+            deceleration_curve=config.deceleration_curve,turn_rate_curve=config.turn_rate_curve,
+            acceleration_response=config.acceleration_response)
+        delayed=replace(own,position_m=tuple(own.position_m[i]+prefix['endpoint'][i] for i in (0,1)),
+            speed_mps=prefix['end_speed'],course_deg=prefix['end_course_deg'],
+            turn_rate_deg_s=prefix['end_turn_rate_deg_s'])
+        rest=forecast(delayed,action,replace(config,control_delay_s=0.),horizon_s=horizon_s)
+        times=tuple(prefix['times_s'])+tuple(delay+t for t in rest.times_s[1:])
+        positions=tuple(tuple(own.position_m[i]+p[i] for i in (0,1)) for p in prefix['path'])+rest.positions_m[1:]
+        return Trajectory(times,positions,delay+rest.braking_start_s)
     requested = min(action.speed_mps, MAX_SPEED_MPS)
     acceleration = config.acceleration_mps2 if requested > own.speed_mps else config.deceleration_mps2
     curve = config.acceleration_curve if requested > own.speed_mps else config.deceleration_curve
@@ -128,7 +145,7 @@ def assess_action(own, targets, action, config, *, horizon_s=None):
     # The measured response is not a maximum capability. A faster physical
     # response must also pass, over the same primary prediction interval.
     bounded = replace(config,acceleration_response='bounded')
-    second = assess_trajectory(forecast(own,action,bounded,horizon_s=nominal.braking_start_s),targets,bounded)
+    second = assess_trajectory(forecast(own,action,bounded,horizon_s=max(config.dt_s,nominal.braking_start_s-config.control_delay_s)),targets,bounded)
     risks = {}
     for assessment in (first,second):
         for risk in assessment.risks:
